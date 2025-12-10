@@ -105,8 +105,8 @@ jobs:
             echo "To get the latest version:"
             echo ""
             printf '%s\n' '```bash'
-            printf '%s\n' '(cd ~ && sed -i.bak '\''/"-antigravity-auth"/d'\'' .cache/opencode/package.json && \'
-            printf '%s\n' 'rm -rf .cache/opencode/node_modules/opencode-antigravity-auth && \'
+            printf '%s\n' '(cd ~ && sed -i.bak '\''/"opencode-google-antigravity-auth"/d'\'' .cache/opencode/package.json && \'
+            printf '%s\n' 'rm -rf .cache/opencode/node_modules/opencode-google-antigravity-auth && \'
             printf '%s\n' 'echo "Plugin update script finished successfully.")'
             printf '%s\n' '```'
 

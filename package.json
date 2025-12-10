@@ -1,10 +1,10 @@
 {
-  "name": "opencode-antigravity-auth",
+  "name": "opencode-google-antigravity-auth",
   "module": "index.ts",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "description": "Opencode plugin providing Antigravity OAuth for Gemini models",
   "author": "shekohex",
-  "repository": "https://github.com/shekohex/opencode-antigravity-auth",
+  "repository": "https://github.com/shekohex/opencode-google-antigravity-auth",
   "files": [
     "index.ts",
     "src"

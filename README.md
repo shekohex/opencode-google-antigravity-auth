@@ -9,7 +9,7 @@ Authenticate the Opencode CLI with your Antigravity (Cloud Code) account so you 
    ```json
    {
      "$schema": "https://opencode.ai/config.json",
-     "plugin": ["opencode-antigravity-auth"]
+     "plugin": ["opencode-google-antigravity-auth"]
    }
    ```
 
@@ -26,7 +26,7 @@ The plugin spins up a local callback listener on `http://localhost:51121/oauth-c
 To get the latest version, clear the cached plugin and let Opencode reinstall it:
 
 ```bash
-rm -rf ~/.cache/opencode/node_modules/opencode-antigravity-auth
+rm -rf ~/.cache/opencode/node_modules/opencode-google-antigravity-auth
 opencode
 ```
 
@@ -88,8 +88,8 @@ Antigravity provides access to Claude models via `gemini-claude-*` model names. 
 ## Local Development
 
 ```bash
-git clone https://github.com/shekohex/opencode-antigravity-auth.git
-cd opencode-antigravity-auth
+git clone https://github.com/shekohex/opencode-google-antigravity-auth.git
+cd opencode-google-antigravity-auth
 bun install
 ```
 
@@ -98,7 +98,7 @@ To load a local checkout in Opencode:
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["file:///absolute/path/to/opencode-antigravity-auth"]
+  "plugin": ["file:///absolute/path/to/opencode-google-antigravity-auth"]
 }
 ```
 
@@ -109,7 +109,7 @@ You should copy that config to your opencode config file.
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-antigravity-auth"],
+  "plugin": ["opencode-google-antigravity-auth"],
   "provider": {
     "google": {
       "npm": "@ai-sdk/google",
