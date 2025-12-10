@@ -76,13 +76,52 @@ export function transformClaudeRequest(
 
       if (normalizedThinking.thinkingBudget) {
         finalThinkingConfig.thinking_budget = normalizedThinking.thinkingBudget;
+        
+        // Ensure maxOutputTokens is set and sufficient for the thinking budget.
+        // Claude requires max_tokens > thinking.budget_tokens.
+        // If maxOutputTokens is missing or too low, we bump it to a safe value (64k).
+        const currentMaxOutputTokens = (rawGenerationConfig?.maxOutputTokens ?? rawGenerationConfig?.max_output_tokens) as number | undefined;
+        if (!currentMaxOutputTokens || currentMaxOutputTokens <= normalizedThinking.thinkingBudget) {
+            if (!rawGenerationConfig) {
+                 // We'll handle this when creating the config object below
+            }
+        }
       }
 
       if (rawGenerationConfig) {
         rawGenerationConfig.thinkingConfig = finalThinkingConfig;
+        
+        // Apply the maxOutputTokens fix
+        const currentMax = (rawGenerationConfig.maxOutputTokens ?? rawGenerationConfig.max_output_tokens) as number | undefined;
+        const budget = normalizedThinking.thinkingBudget;
+        
+        if (budget && (!currentMax || currentMax <= budget)) {
+            // We use 64k as a safe default for thinking models which usually have higher limits
+            const newMax = 64000;
+            // Prefer camelCase for Gemini API compatibility
+            rawGenerationConfig.maxOutputTokens = newMax;
+            
+            // If snake_case existed, update it too to be safe, or just leave it. 
+            // Gemini usually expects camelCase.
+            if (rawGenerationConfig.max_output_tokens !== undefined) {
+                delete rawGenerationConfig.max_output_tokens;
+            }
+            
+            debugLog(`${DEBUG_PREFIX} Bumped maxOutputTokens to ${newMax} to satisfy thinking budget (${budget})`);
+        }
+
         requestPayload.generationConfig = rawGenerationConfig;
       } else {
-        requestPayload.generationConfig = { thinkingConfig: finalThinkingConfig };
+        const genConfig: Record<string, unknown> = { thinkingConfig: finalThinkingConfig };
+        
+        // Apply the maxOutputTokens fix
+        const budget = normalizedThinking.thinkingBudget;
+        if (budget) {
+            genConfig.maxOutputTokens = 64000;
+            debugLog(`${DEBUG_PREFIX} Set maxOutputTokens to 64000 to satisfy thinking budget (${budget})`);
+        }
+        
+        requestPayload.generationConfig = genConfig;
       }
     } else if (rawGenerationConfig?.thinkingConfig) {
       delete rawGenerationConfig.thinkingConfig;
