@@ -52,7 +52,9 @@ jobs:
 
       - name: Install dependencies
         if: steps.determine.outputs.changed == 'true' && steps.determine.outputs.tag_exists == 'false'
-        run: npm install
+        run: |
+          npm install -g npm@latest
+          npm install
 
       - name: Generate release notes
         if: steps.determine.outputs.changed == 'true' && steps.determine.outputs.tag_exists == 'false'
