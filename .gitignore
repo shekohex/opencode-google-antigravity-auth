@@ -35,4 +35,4 @@ gemini-debug-*.log
 .DS_Store
 
 # Log files
-*.log
+# *.log

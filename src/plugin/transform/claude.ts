@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { normalizeThinkingConfig } from "../request-helpers";
 import type { RequestPayload, TransformContext, TransformResult } from "./types";
 
@@ -122,8 +123,7 @@ export function transformClaudeRequest(
 
   const contents = requestPayload.contents as Array<Record<string, unknown>> | undefined;
   if (Array.isArray(contents)) {
-    let funcCallCounter = 0;
-    const funcCallIdMap = new Map<string, string>();
+    const funcCallIdQueues = new Map<string, string[]>();
     let thinkingBlocksRemoved = 0;
     
     for (const content of contents) {
@@ -152,22 +152,41 @@ export function transformClaudeRequest(
         
         const functionCall = part.functionCall as Record<string, unknown> | undefined;
         if (functionCall && typeof functionCall.name === "string") {
+          if (process.env.OPENCODE_ANTIGRAVITY_DEBUG === "1") {
+            console.log(`${DEBUG_PREFIX} functionCall found:`, JSON.stringify(functionCall, null, 2));
+          }
           if (!functionCall.id) {
-            const callId = `${functionCall.name}-${funcCallCounter++}`;
+            const callId = `${functionCall.name}-${randomUUID()}`;
             functionCall.id = callId;
-            funcCallIdMap.set(functionCall.name as string, callId);
             toolsTransformed = true;
             
             if (process.env.OPENCODE_ANTIGRAVITY_DEBUG === "1") {
               console.log(`${DEBUG_PREFIX} Added ID to functionCall: ${functionCall.name} -> ${callId}`);
             }
           }
+          const queue = funcCallIdQueues.get(functionCall.name) ?? [];
+          queue.push(functionCall.id as string);
+          funcCallIdQueues.set(functionCall.name, queue);
         }
         
         const functionResponse = part.functionResponse as Record<string, unknown> | undefined;
         if (functionResponse && typeof functionResponse.name === "string") {
-          if (!functionResponse.id && funcCallIdMap.has(functionResponse.name as string)) {
-            functionResponse.id = funcCallIdMap.get(functionResponse.name as string);
+          if (process.env.OPENCODE_ANTIGRAVITY_DEBUG === "1") {
+            const responsePreview = functionResponse.response ? 
+              JSON.stringify(functionResponse.response).slice(0, 200) + "..." : undefined;
+            console.log(`${DEBUG_PREFIX} functionResponse found:`, JSON.stringify({
+              ...functionResponse,
+              response: responsePreview,
+            }, null, 2));
+          }
+          if (!functionResponse.id) {
+            const queue = funcCallIdQueues.get(functionResponse.name);
+            if (queue && queue.length > 0) {
+              functionResponse.id = queue.shift();
+              if (process.env.OPENCODE_ANTIGRAVITY_DEBUG === "1") {
+                console.log(`${DEBUG_PREFIX} Assigned ID to functionResponse: ${functionResponse.name} -> ${functionResponse.id}`);
+              }
+            }
           }
         }
         
