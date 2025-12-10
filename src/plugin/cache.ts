@@ -63,3 +63,39 @@ export function clearCachedAuth(refresh?: string): void {
     authCache.delete(key);
   }
 }
+
+// --- Thinking Signature Cache ---
+
+const signatureCache = new Map<string, string>();
+
+/**
+ * Generates a cache key for a thought block.
+ * We use the full text to ensure uniqueness, scoped by session.
+ */
+function getSignatureKey(sessionId: string, thoughtText: string): string {
+  return `${sessionId}:${thoughtText}`;
+}
+
+/**
+ * Caches a thought signature for a given session and thought text.
+ * Implements a simple LRU-like eviction policy (clears old entries when limit reached).
+ */
+export function cacheSignature(sessionId: string, thoughtText: string, signature: string): void {
+  const key = getSignatureKey(sessionId, thoughtText);
+  signatureCache.set(key, signature);
+  
+  // Prevent unbounded growth
+  if (signatureCache.size > 1000) {
+    // Delete the first inserted item (Map iterates in insertion order)
+    const firstKey = signatureCache.keys().next().value;
+    if (firstKey) signatureCache.delete(firstKey);
+  }
+}
+
+/**
+ * Retrieves a cached thought signature.
+ */
+export function getCachedSignature(sessionId: string, thoughtText: string): string | undefined {
+  const key = getSignatureKey(sessionId, thoughtText);
+  return signatureCache.get(key);
+}

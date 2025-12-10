@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { debugLog } from "../debug";
+import { getCachedSignature } from "../cache";
 import { normalizeThinkingConfig } from "../request-helpers";
 import type { RequestPayload, TransformContext, TransformResult } from "./types";
 
@@ -156,13 +157,26 @@ export function transformClaudeRequest(
       
       for (const part of parts) {
         if (part.thought === true) {
-          const signature = part.thoughtSignature;
+          let signature = part.thoughtSignature;
+
+          if (!signature || (typeof signature === "string" && signature.length < 50)) {
+            // Try cache
+            if (typeof part.text === "string") {
+              const cached = getCachedSignature(context.sessionId, part.text);
+              if (cached) {
+                signature = cached;
+                part.thoughtSignature = cached;
+                debugLog(`${DEBUG_PREFIX} Restored thought signature from cache`);
+              }
+            }
+          }
+
           if (typeof signature === "string" && signature.length > 50) {
             debugLog(`${DEBUG_PREFIX} Keeping thought part with valid signature`);
           } else {
-            thinkingBlocksRemoved++;
-            debugLog(`${DEBUG_PREFIX} Stripped thought part without valid signature`);
-            continue;
+            debugLog(`${DEBUG_PREFIX} Warning: Thought part has invalid/missing signature (len=${typeof signature === 'string' ? signature.length : 0}), but keeping it to satisfy Claude requirements.`);
+            // thinkingBlocksRemoved++;
+            // continue;
           }
         }
 
@@ -210,6 +224,8 @@ export function transformClaudeRequest(
     if (thinkingBlocksRemoved > 0) {
       debugLog(`${DEBUG_PREFIX} Removed ${thinkingBlocksRemoved} invalid thinking blocks from history`);
     }
+
+    debugLog(`${DEBUG_PREFIX} Final transformed contents:`, JSON.stringify(contents, null, 2));
   }
 
 

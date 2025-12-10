@@ -113,7 +113,7 @@ export const AntigravityOAuthPlugin = async (
           });
 
           const response = await fetch(request, transformedInit);
-          return transformAntigravityResponse(response, streaming, client, debugContext, requestedModel);
+          return transformAntigravityResponse(response, streaming, client, debugContext, requestedModel, getSessionId());
         },
       };
     },

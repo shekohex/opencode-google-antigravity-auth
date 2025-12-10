@@ -1,4 +1,5 @@
 import { CODE_ASSIST_ENDPOINT, CODE_ASSIST_HEADERS } from "../constants";
+import { cacheSignature } from "./cache";
 import { debugLog, logAntigravityDebugResponse, type AntigravityDebugContext } from "./debug";
 import {
   extractUsageFromSsePayload,
@@ -53,7 +54,7 @@ function transformStreamingPayload(payload: string, onError?: (body: GeminiApiBo
     .join("\n");
 }
 
-function transformSseLine(line: string, onError?: (body: GeminiApiBody) => GeminiApiBody | null): string {
+function transformSseLine(line: string, onError?: (body: GeminiApiBody) => GeminiApiBody | null, onParsed?: (body: GeminiApiBody) => void): string {
   if (!line.startsWith("data:")) {
     return line;
   }
@@ -75,6 +76,10 @@ function transformSseLine(line: string, onError?: (body: GeminiApiBody) => Gemin
 
     const body = parsed as GeminiApiBody;
 
+    if (onParsed) {
+      onParsed(body);
+    }
+
     if (body.error) {
       const rewritten = onError?.(body);
       if (rewritten) {
@@ -93,8 +98,9 @@ function transformSseLine(line: string, onError?: (body: GeminiApiBody) => Gemin
   return line;
 }
 
-export function createSseTransformStream(onError?: (body: GeminiApiBody) => GeminiApiBody | null): TransformStream<string, string> {
+export function createSseTransformStream(onError?: (body: GeminiApiBody) => GeminiApiBody | null, sessionId?: string): TransformStream<string, string> {
   let buffer = "";
+  const thoughtBuffers = new Map<number, string>();
 
   return new TransformStream<string, string>({
     transform(chunk, controller) {
@@ -103,7 +109,31 @@ export function createSseTransformStream(onError?: (body: GeminiApiBody) => Gemi
       buffer = lines.pop() ?? "";
 
       for (const line of lines) {
-        const transformed = transformSseLine(line, onError);
+        const transformed = transformSseLine(line, onError, (body) => {
+          if (!sessionId) return;
+          const response = body.response as any;
+          if (!response?.candidates) return;
+          
+          response.candidates.forEach((candidate: any, index: number) => {
+            if (candidate.content?.parts) {
+              candidate.content.parts.forEach((part: any) => {
+                if (part.thought) {
+                  if (part.text) {
+                    const current = thoughtBuffers.get(index) ?? "";
+                    thoughtBuffers.set(index, current + part.text);
+                  }
+                  if (part.thoughtSignature) {
+                    const fullText = thoughtBuffers.get(index) ?? "";
+                    if (fullText) {
+                      cacheSignature(sessionId, fullText, part.thoughtSignature);
+                      debugLog(`[SSE Transform] Cached signature for session ${sessionId} (text len=${fullText.length})`);
+                    }
+                  }
+                }
+              });
+            }
+          });
+        });
         controller.enqueue(transformed + "\n");
       }
     },
@@ -290,6 +320,7 @@ export async function transformAntigravityResponse(
   client: PluginClient,
   debugContext?: AntigravityDebugContext | null,
   requestedModel?: string,
+  sessionId?: string,
 ): Promise<Response> {
   const contentType = response.headers.get("content-type") ?? "";
   const isJsonResponse = contentType.includes("application/json");
@@ -330,7 +361,7 @@ export async function transformAntigravityResponse(
 
     const transformedBody = response.body
       .pipeThrough(new TextDecoderStream())
-      .pipeThrough(createSseTransformStream(errorHandler))
+      .pipeThrough(createSseTransformStream(errorHandler, sessionId))
       .pipeThrough(new TextEncoderStream());
 
     return new Response(transformedBody, {
@@ -354,6 +385,28 @@ export async function transformAntigravityResponse(
 
     const usageFromSse = streaming && isEventStreamResponse ? extractUsageFromSsePayload(text) : null;
     const parsed: GeminiApiBody | null = parseGeminiApiBody(text);
+
+    if (sessionId && parsed) {
+      const responseBody = parsed.response as any;
+      if (responseBody?.candidates) {
+         responseBody.candidates.forEach((candidate: any) => {
+             let fullText = "";
+             let signature = "";
+             if (candidate.content?.parts) {
+                 candidate.content.parts.forEach((part: any) => {
+                     if (part.thought) {
+                          if (part.text) fullText += part.text;
+                          if (part.thoughtSignature) signature = part.thoughtSignature;
+                     }
+                 });
+             }
+             if (fullText && signature) {
+                 cacheSignature(sessionId, fullText, signature);
+                 debugLog(`[Antigravity Transform] Cached signature for session ${sessionId} (len=${fullText.length})`);
+             }
+         });
+      }
+    }
 
     // Apply error rewrites
     const previewErrorFixed = parsed ? rewriteGeminiPreviewAccessError(parsed, response.status, requestedModel) : null;
