@@ -237,9 +237,9 @@ export function transformClaudeRequest(
           if (typeof signature === "string" && signature.length > 50) {
             debugLog(`${DEBUG_PREFIX} Keeping thought part with valid signature`);
           } else {
-            debugLog(`${DEBUG_PREFIX} Warning: Thought part has invalid/missing signature (len=${typeof signature === 'string' ? signature.length : 0}), but keeping it to satisfy Claude requirements.`);
-            // thinkingBlocksRemoved++;
-            // continue;
+            debugLog(`${DEBUG_PREFIX} Warning: Thought part has invalid/missing signature (len=${typeof signature === 'string' ? signature.length : 0}). Removing it to prevent API error.`);
+            thinkingBlocksRemoved++;
+            continue;
           }
         }
 

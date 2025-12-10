@@ -16,7 +16,7 @@ function createClient() {
     auth: {
       set: mock(async () => {}),
     },
-  } as PluginClient & {
+  } as unknown as PluginClient & {
     auth: { set: ReturnType<typeof mock<(input: any) => Promise<void>>> };
   };
 }
