@@ -36,4 +36,6 @@ export type ToolDeclaration = {
   }>;
   googleSearch?: Record<string, unknown>;
   google_search?: Record<string, unknown>;
+  urlContext?: Record<string, unknown>;
+  url_context?: Record<string, unknown>;
 };

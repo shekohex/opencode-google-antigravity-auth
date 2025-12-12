@@ -13,6 +13,7 @@ import {
   transformAntigravityResponse,
 } from "./plugin/request";
 import { getSessionId, toUrlString } from "./plugin/request-helpers";
+import { executeSearch } from "./plugin/search";
 import { startOAuthListener, type OAuthListener } from "./plugin/server";
 import { refreshAccessToken } from "./plugin/token";
 import type {
@@ -24,18 +25,67 @@ import type {
   Provider,
 } from "./plugin/types";
 
-const log = createLogger("tool");
+const log = createLogger("plugin");
 
-const googleSearchTool = tool({
-  description: "Search the web using Google Search. Returns real-time information from the internet. Use this when you need up-to-date information about current events, recent developments, or any topic that may have changed since your training data.",
-  args: {
-    query: tool.schema.string().describe("The search query to find information on the web"),
-  },
-  async execute(args, _ctx) {
-    log.debug("Google Search tool called", { query: args.query });
-    return `Searching the web for: "${args.query}"`;
-  },
-});
+async function getAuthContext(
+  getAuth: GetAuth,
+  client: PluginContext["client"],
+): Promise<{ accessToken: string; projectId: string } | null> {
+  const auth = await getAuth();
+  if (!isOAuthAuth(auth)) {
+    return null;
+  }
+
+  let authRecord = auth;
+  if (accessTokenExpired(authRecord)) {
+    const refreshed = await refreshAccessToken(authRecord, client);
+    if (!refreshed) {
+      return null;
+    }
+    authRecord = refreshed;
+  }
+
+  const accessToken = authRecord.access;
+  if (!accessToken) {
+    return null;
+  }
+
+  try {
+    const projectContext = await ensureProjectContext(authRecord, client);
+    return { accessToken, projectId: projectContext.effectiveProjectId };
+  } catch {
+    return null;
+  }
+}
+
+function createGoogleSearchTool(getAuth: GetAuth, client: PluginContext["client"]) {
+  return tool({
+    description: "Search the web using Google Search and analyze URLs. Returns real-time information from the internet with source citations. Use this when you need up-to-date information about current events, recent developments, or any topic that may have changed. You can also provide specific URLs to analyze. IMPORTANT: If the user mentions or provides any URLs in their query, you MUST extract those URLs and pass them in the 'urls' parameter for direct analysis.",
+    args: {
+      query: tool.schema.string().describe("The search query or question to answer using web search"),
+      urls: tool.schema.array(tool.schema.string()).optional().describe("List of specific URLs to fetch and analyze. IMPORTANT: Always extract and include any URLs mentioned by the user in their query here."),
+      thinking: tool.schema.boolean().optional().default(true).describe("Enable deep thinking for more thorough analysis (default: true)"),
+    },
+    async execute(args, _ctx) {
+      log.debug("Google Search tool called", { query: args.query, urlCount: args.urls?.length ?? 0 });
+
+      const authContext = await getAuthContext(getAuth, client);
+      if (!authContext) {
+        return "Error: Not authenticated with Antigravity. Please run `opencode auth login` to authenticate.";
+      }
+
+      return executeSearch(
+        {
+          query: args.query,
+          urls: args.urls,
+          thinking: args.thinking,
+        },
+        authContext.accessToken,
+        authContext.projectId,
+      );
+    },
+  });
+}
 
 /**
  * Registers the Antigravity OAuth provider for Opencode, handling auth, request rewriting,
@@ -46,10 +96,13 @@ export const AntigravityOAuthPlugin = async (
 ): Promise<PluginResult> => {
   initLogger(client);
 
+  let cachedGetAuth: GetAuth | null = null;
+
   return {
     auth: {
       provider: ANTIGRAVITY_PROVIDER_ID,
       loader: async (getAuth: GetAuth, provider: Provider): Promise<LoaderResult | Record<string, unknown>> => {
+        cachedGetAuth = getAuth;
         const auth = await getAuth();
         if (!isOAuthAuth(auth)) {
           return {};
@@ -266,7 +319,12 @@ export const AntigravityOAuthPlugin = async (
       ],
     },
     tool: {
-      google_search: googleSearchTool,
+      google_search: createGoogleSearchTool(() => {
+        if (!cachedGetAuth) {
+          throw new Error("Auth not initialized");
+        }
+        return cachedGetAuth();
+      }, client),
     },
   };
 };

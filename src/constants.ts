@@ -25,3 +25,8 @@ export const CODE_ASSIST_HEADERS = {
 } as const;
 
 export const ANTIGRAVITY_PROVIDER_ID = "google";
+
+export const SEARCH_MODEL = "gemini-2.5-flash";
+export const SEARCH_THINKING_BUDGET_FAST = 4096;
+export const SEARCH_THINKING_BUDGET_DEEP = 16384;
+export const SEARCH_TIMEOUT_MS = 60 * 1000;
