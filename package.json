@@ -1,7 +1,7 @@
 {
   "name": "opencode-google-antigravity-auth",
   "module": "index.ts",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "scripts": {
     "test": "bun test",
     "test:unit": "bun test src/**/*.test.ts",
