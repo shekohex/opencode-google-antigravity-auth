@@ -1,6 +1,9 @@
 import { promises as fs } from "node:fs";
 import { join, dirname } from "node:path";
 import { homedir } from "node:os";
+import { createLogger } from "./logger";
+
+const log = createLogger("storage");
 
 export interface AccountMetadata {
   email?: string;
@@ -21,10 +24,11 @@ export interface AccountStorage {
 }
 
 /**
- * Get the path to the OpenCode config directory.
- * Uses XDG Base Directory spec on Unix, AppData on Windows.
+ * Get the path to the OpenCode data directory.
+ * Uses XDG Base Directory spec on Unix (~/.local/share), AppData on Windows.
+ * This follows the same convention as auth.json storage.
  */
-function getConfigDir(): string {
+function getDataDir(): string {
   const platform = process.platform;
   
   if (platform === "win32") {
@@ -32,15 +36,16 @@ function getConfigDir(): string {
   }
   
   // Unix-like systems (Linux, macOS)
-  const xdgConfig = process.env.XDG_CONFIG_HOME || join(homedir(), ".config");
-  return join(xdgConfig, "opencode");
+  // Use XDG_DATA_HOME (~/.local/share) to store alongside auth.json
+  const xdgData = process.env.XDG_DATA_HOME || join(homedir(), ".local", "share");
+  return join(xdgData, "opencode");
 }
 
 /**
  * Get the full path to the antigravity accounts storage file.
  */
 export function getStoragePath(): string {
-  return join(getConfigDir(), "antigravity-accounts.json");
+  return join(getDataDir(), "antigravity-accounts.json");
 }
 
 /**
@@ -55,7 +60,7 @@ export async function loadAccounts(): Promise<AccountStorage | null> {
     
     // Validate structure
     if (data.version !== 1 || !Array.isArray(data.accounts)) {
-      console.warn("[antigravity-auth] Invalid storage format, ignoring");
+      log.warn("Invalid storage format, ignoring");
       return null;
     }
     
@@ -65,7 +70,7 @@ export async function loadAccounts(): Promise<AccountStorage | null> {
       // File doesn't exist yet, this is normal on first run
       return null;
     }
-    console.error("[antigravity-auth] Failed to load account storage:", error);
+    log.error("Failed to load account storage", { error: String(error) });
     return null;
   }
 }
@@ -84,7 +89,7 @@ export async function saveAccounts(storage: AccountStorage): Promise<void> {
     const content = JSON.stringify(storage, null, 2);
     await fs.writeFile(path, content, "utf-8");
   } catch (error) {
-    console.error("[antigravity-auth] Failed to save account storage:", error);
+    log.error("Failed to save account storage", { error: String(error) });
     throw error;
   }
 }
