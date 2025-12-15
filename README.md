@@ -48,7 +48,7 @@ During `opencode auth login`, you'll be prompted to add additional accounts:
 You have 1 account(s) configured. Add another? (y/n): y
 ```
 
-You can add up to 10 accounts. The plugin stores account metadata in `~/.config/opencode/antigravity-accounts.json`.
+You can add up to 10 accounts. The plugin stores account metadata in `$XDG_DATA_HOME/opencode/antigravity-accounts.json` (for example `~/.local/share/opencode/antigravity-accounts.json`).
 
 ### When To Use Multi-Account
 
