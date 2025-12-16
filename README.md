@@ -371,6 +371,62 @@ Log files are stored in `~/.local/share/opencode/logs/` (or `$XDG_DATA_HOME/open
 
 ## Troubleshooting
 
+### Image Support
+
+To enable image input for Antigravity models in OpenCode, you must add the `modalities` configuration to your model definitions in `opencode.json`:
+
+```json
+{
+  "provider": {
+    "google": {
+      "models": {
+        "gemini-3-pro-high": {
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"]
+          }
+        },
+        "claude-sonnet-4-5-thinking": {
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"]
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+Without the `modalities.input` array containing `"image"`, OpenCode will reject image inputs with the error: `"this model does not support image input"`. This applies to both Gemini and Claude models accessed through Antigravity.
+
+**Note:** The example config in this README already includes proper `modalities` configuration for all models.
+
+### Tool Name Compatibility with Gemini
+
+Gemini API requires tool names to match the pattern `^[a-zA-Z_][a-zA-Z0-9_-]*$`, meaning they cannot start with numbers. The plugin automatically sanitizes tool names by prepending `t_` to any tool name that starts with a digit.
+
+For example:
+- `21st-dev-magic_component_builder` → `t_21st-dev-magic_component_builder`
+
+This sanitization is transparent and automatic. However, if you encounter tool-related errors with Gemini models, you can disable problematic MCP servers in your config:
+
+```json
+{
+  "provider": {
+    "google": {
+      "models": {
+        "gemini-3-pro-high": {
+          "tools": {
+            "21st-dev-magic_*": false
+          }
+        }
+      }
+    }
+  }
+}
+```
+
 ### Compatibility with `opencode-skills`
 
 The [`opencode-skills`](https://github.com/malhashemi/opencode-skills) plugin is currently **incompatible** with this plugin. Using them together may cause `invalid_request_error` failures, especially with Claude thinking models, due to conflicts in message history handling.

@@ -8,6 +8,47 @@ const log = createLogger("transform.gemini");
 const THOUGHT_SIGNATURE_BYPASS = "skip_thought_signature_validator";
 
 /**
+ * Sanitizes tool names for Gemini API compatibility.
+ * Gemini requires tool names to match: ^[a-zA-Z_][a-zA-Z0-9_-]*$
+ * This means names cannot start with numbers.
+ * 
+ * @param name - The original tool name
+ * @returns A sanitized tool name that starts with a letter or underscore
+ */
+function sanitizeToolNameForGemini(name: string): string {
+  // If the name starts with a number, prepend 't_' (for 'tool_')
+  if (/^[0-9]/.test(name)) {
+    return `t_${name}`;
+  }
+  return name;
+}
+
+/**
+ * Recursively sanitizes all tool names in the request payload.
+ * 
+ * @param payload - The request payload containing tools
+ */
+function sanitizeToolNames(payload: RequestPayload): void {
+  const tools = payload.tools as Array<Record<string, unknown>> | undefined;
+  if (!Array.isArray(tools)) return;
+
+  for (const tool of tools) {
+    const funcDecls = tool.functionDeclarations as Array<Record<string, unknown>> | undefined;
+    if (!Array.isArray(funcDecls)) continue;
+
+    for (const func of funcDecls) {
+      if (typeof func.name === "string") {
+        const originalName = func.name;
+        func.name = sanitizeToolNameForGemini(originalName);
+        if (originalName !== func.name) {
+          log.debug(`Sanitized tool name: ${originalName} → ${func.name}`);
+        }
+      }
+    }
+  }
+}
+
+/**
  * Transforms a request payload for native Gemini models.
  * 
  * Handles common transformations:
@@ -83,6 +124,9 @@ export function transformGeminiRequest(
   if ("model" in requestPayload) {
     delete requestPayload.model;
   }
+
+  // Sanitize tool names to ensure Gemini API compatibility
+  sanitizeToolNames(requestPayload);
 
   const contents = requestPayload.contents as Array<Record<string, unknown>> | undefined;
   if (Array.isArray(contents)) {
