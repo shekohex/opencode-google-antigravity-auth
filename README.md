@@ -26,7 +26,7 @@ Authenticate the Opencode CLI with your Antigravity (Cloud Code) account so you 
 4. Authenticate with your first Google account in the browser.
 5. **Optional:** Add more accounts for load balancing when prompted.
 
-The plugin spins up a local callback listener on `http://localhost:51121/oauth-callback`, so after approving in the browser you'll land on an "Authentication complete" page with no URL copy/paste required. If that port is already taken or you're headless, the CLI automatically falls back to the copy/paste flow and explains what to do.
+The plugin spins up a local callback listener on `http://localhost:36742/oauth-callback`, so after approving in the browser you'll land on an "Authentication complete" page with no URL copy/paste required. If that port is already taken or you're headless, the CLI automatically falls back to the copy/paste flow and explains what to do.
 
 ## Multi-Account Load Balancing
 
