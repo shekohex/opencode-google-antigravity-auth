@@ -27,14 +27,14 @@
   "license": "MIT",
   "type": "module",
   "devDependencies": {
-    "@opencode-ai/sdk": "^1.0.164",
+    "@opencode-ai/sdk": "^1.0.169",
     "@types/bun": "latest"
   },
   "peerDependencies": {
-    "typescript": "^5"
+    "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@opencode-ai/plugin": "^1.0.164",
+    "@opencode-ai/plugin": "^1.0.169",
     "@openauthjs/openauth": "^0.4.3",
     "open": "^11.0.0"
   }

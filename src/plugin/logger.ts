@@ -60,7 +60,7 @@ export function createLogger(module: string): Logger {
   const service = `antigravity.${module}`;
 
   const log = (level: LogLevel, message: string, extra?: Record<string, unknown>): void => {
-    if (_client) {
+    if (_client?.app?.log) {
       _client.app.log({
         body: { service, level, message, extra },
       }).catch(() => { });
