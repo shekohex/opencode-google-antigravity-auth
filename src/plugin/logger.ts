@@ -64,7 +64,7 @@ export function createLogger(module: string): Logger {
       _client.app.log({
         body: { service, level, message, extra },
       }).catch(() => { });
-    } else {
+    } else if (isConsoleLogEnabled()) {
       const prefix = `[${service}]`;
       const args = extra ? [prefix, message, extra] : [prefix, message];
       switch (level) {
