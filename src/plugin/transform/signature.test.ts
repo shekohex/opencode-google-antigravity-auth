@@ -1,7 +1,8 @@
 import { describe, expect, it } from "bun:test";
 
 import { cacheSignature } from "../cache";
-import { recursivelyParseJsonStrings } from "../request-helpers";
+import { normalizeToolCallArgs, recursivelyParseJsonStrings } from "../request-helpers";
+import { cacheToolSchemas, clearToolSchemaCache } from "../tool-schema-cache";
 import { transformClaudeRequest } from "./claude";
 import { transformGeminiRequest } from "./gemini";
 import type { ModelFamily, RequestPayload, TransformContext } from "./types";
@@ -202,6 +203,101 @@ describe("thoughtSignature handling", () => {
       const output = recursivelyParseJsonStrings('[{"path":"a"}]}') as any;
       expect(Array.isArray(output)).toBe(true);
       expect(output[0].path).toBe("a");
+    });
+  });
+
+  describe("normalizeToolCallArgs (Schema-Aware)", () => {
+    it("preserves JSON string when schema says string", () => {
+      clearToolSchemaCache();
+      cacheToolSchemas([
+        {
+          functionDeclarations: [
+            {
+              name: "write",
+              parameters: {
+                type: "object",
+                properties: {
+                  content: { type: "string" },
+                  filePath: { type: "string" }
+                }
+              }
+            }
+          ]
+        }
+      ]);
+
+      const args = {
+        content: '{"name": "test", "version": "1.0.0"}',
+        filePath: "test.json"
+      };
+
+      const normalized = normalizeToolCallArgs(args, "write") as any;
+      expect(typeof normalized.content).toBe("string");
+      expect(normalized.content).toBe('{"name": "test", "version": "1.0.0"}');
+    });
+
+    it("parses JSON string when schema says array", () => {
+      clearToolSchemaCache();
+      cacheToolSchemas([
+        {
+          functionDeclarations: [
+            {
+              name: "read",
+              parameters: {
+                type: "object",
+                properties: {
+                  files: { type: "array" }
+                }
+              }
+            }
+          ]
+        }
+      ]);
+
+      const args = {
+        files: '[{"path": "a.txt"}]'
+      };
+
+      const normalized = normalizeToolCallArgs(args, "read") as any;
+      expect(Array.isArray(normalized.files)).toBe(true);
+      expect(normalized.files[0].path).toBe("a.txt");
+    });
+
+    it("handles sanitized tool names correctly", () => {
+      clearToolSchemaCache();
+      // Tool name starting with number
+      cacheToolSchemas([
+        {
+          functionDeclarations: [
+            {
+              name: "21st-dev-magic",
+              parameters: {
+                type: "object",
+                properties: {
+                  code: { type: "string" }
+                }
+              }
+            }
+          ]
+        }
+      ]);
+
+      const args = {
+        code: '{"foo": "bar"}'
+      };
+
+      // Try with sanitized name
+      const normalized = normalizeToolCallArgs(args, "t_21st-dev-magic") as any;
+      expect(typeof normalized.code).toBe("string");
+      expect(normalized.code).toBe('{"foo": "bar"}');
+    });
+
+    it("unescapes control characters in strings", () => {
+      const args = {
+        text: "line1\\nline2"
+      };
+      const normalized = normalizeToolCallArgs(args, "any") as any;
+      expect(normalized.text).toBe("line1\nline2");
     });
   });
 

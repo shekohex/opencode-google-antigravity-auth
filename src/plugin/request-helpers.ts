@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { getParamType } from "./tool-schema-cache";
 
 const SESSION_ID = `-${Math.floor(Math.random() * 9_000_000_000_000_000)}`;
 
@@ -343,4 +344,70 @@ export function recursivelyParseJsonStrings(value: unknown): unknown {
   }
 
   return value;
+}
+
+/**
+ * Processes a value by only unescaping control characters (like \n, \t).
+ * It does NOT attempt to parse JSON objects from strings.
+ */
+export function processEscapeSequencesOnly(value: unknown): unknown {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  const hasControlCharEscapes = value.includes("\\n") || value.includes("\\t");
+  const hasIntentionalEscapes = value.includes('\\"') || value.includes("\\\\");
+
+  if (hasControlCharEscapes && !hasIntentionalEscapes) {
+    try {
+      // Use JSON.parse to correctly handle unescaping control characters
+      const unescaped = JSON.parse(`"${value.replaceAll('"', '\\"')}"`);
+      if (typeof unescaped === "string") {
+        return unescaped;
+      }
+    } catch {
+      // Fall back to original
+    }
+  }
+
+  return value;
+}
+
+/**
+ * Normalizes tool call arguments based on their schema.
+ * - If schema says string: only unescape control characters, don't parse as JSON.
+ * - If schema says array/object: attempt to parse string as JSON.
+ * - If no schema: fallback to processEscapeSequencesOnly.
+ */
+export function normalizeToolCallArgs(args: unknown, toolName: string): unknown {
+  if (!args || typeof args !== "object") {
+    return args;
+  }
+
+  const record = args as Record<string, unknown>;
+  const result: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(record)) {
+    const expectedType = getParamType(toolName, key);
+
+    if (expectedType === "string") {
+      result[key] = processEscapeSequencesOnly(value);
+    } else if (typeof value === "string" && (expectedType === "array" || expectedType === "object")) {
+      // If we expect an array/object but got a string, try to parse it
+      try {
+        const parsed = JSON.parse(value);
+        result[key] = parsed;
+      } catch {
+        result[key] = processEscapeSequencesOnly(value);
+      }
+    } else if (expectedType === undefined) {
+      // No schema info: be conservative and only unescape control characters
+      result[key] = processEscapeSequencesOnly(value);
+    } else {
+      // For other types, or if it's already an object, just process escapes
+      result[key] = processEscapeSequencesOnly(value);
+    }
+  }
+
+  return result;
 }

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { cacheSignature, getCachedSignature } from "../cache";
 import { createLogger } from "../logger";
 import { normalizeThinkingConfig } from "../request-helpers";
+import { cacheToolSchemas } from "../tool-schema-cache";
 import type { RequestPayload, TransformContext, TransformResult } from "./types";
 
 const log = createLogger("transform.claude");
@@ -186,6 +187,9 @@ export function transformClaudeRequest(
   if ("model" in requestPayload) {
     delete requestPayload.model;
   }
+
+  // Cache tool schemas for response normalization
+  cacheToolSchemas(requestPayload.tools as any[]);
 
   const tools = requestPayload.tools as Array<Record<string, unknown>> | undefined;
   if (Array.isArray(tools)) {

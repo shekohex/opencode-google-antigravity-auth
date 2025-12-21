@@ -8,6 +8,7 @@ import {
   generateRequestId,
   getSessionId,
   parseGeminiApiBody,
+  normalizeToolCallArgs,
   recursivelyParseJsonStrings,
   rewriteGeminiPreviewAccessError,
   rewriteGeminiRateLimitError,
@@ -321,7 +322,7 @@ function normalizeToolArgsInResponse(response: unknown): void {
       const functionCall = (part as any)?.functionCall;
       if (functionCall && "args" in functionCall) {
         const beforeArgs = functionCall.args;
-        const afterArgs = recursivelyParseJsonStrings(beforeArgs);
+        const afterArgs = normalizeToolCallArgs(beforeArgs, functionCall.name);
         functionCall.args = afterArgs;
 
         if (typeof beforeArgs === "string" && beforeArgs !== afterArgs) {
