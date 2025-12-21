@@ -1,6 +1,7 @@
 import { getCachedSignature } from "../cache";
 import { createLogger } from "../logger";
 import { normalizeThinkingConfig } from "../request-helpers";
+import { cacheToolSchemas } from "../tool-schema-cache";
 import type { RequestPayload, TransformContext, TransformResult } from "./types";
 
 const log = createLogger("transform.gemini");
@@ -515,6 +516,9 @@ export function transformGeminiRequest(
 
   // Sanitize tool names to ensure Gemini API compatibility
   sanitizeToolNames(requestPayload);
+
+  // Cache tool schemas for response normalization
+  cacheToolSchemas(requestPayload.tools as any[]);
 
   augmentToolDescriptionsWithStrictParams(requestPayload);
   injectSystemInstructionIfNeeded(requestPayload);
