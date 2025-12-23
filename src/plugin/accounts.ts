@@ -104,7 +104,7 @@ export class AccountManager {
 
   async save(): Promise<void> {
     const storage: AccountStorage = {
-      version: 2,
+      version: 3,
       accounts: this.accounts.map((acc) => ({
         email: acc.email,
         tier: acc.tier,

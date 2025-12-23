@@ -1,7 +1,7 @@
 import { describe, it, expect, mock, beforeEach } from "bun:test";
 import { join } from "node:path";
 import { promises as fs } from "node:fs";
-import { loadAccounts, saveAccounts, getStoragePath, type AccountStorageV1, type AccountStorage } from "./storage";
+import { loadAccounts, saveAccounts, getStoragePath, type AccountStorageV1, type AccountStorageV2, type AccountStorage } from "./storage";
 
 // Mock filesystem
 const mockFs = {
@@ -32,7 +32,7 @@ describe("storage migration", () => {
     mockFs.mkdir.mockReset();
   });
 
-  it("should migrate v1 storage to v2", async () => {
+  it("should migrate v1 storage to v3", async () => {
     const now = Date.now();
     const futureTime = now + 60000;
 
@@ -65,7 +65,7 @@ describe("storage migration", () => {
     const storage = await loadAccounts();
 
     expect(storage).not.toBeNull();
-    expect(storage?.version).toBe(2);
+    expect(storage?.version).toBe(3);
     expect(storage?.accounts[0]?.rateLimitResetTimes).toEqual({
       claude: futureTime,
       "gemini-flash": futureTime,
@@ -76,10 +76,10 @@ describe("storage migration", () => {
     // Verify it saved the migrated data
     expect(mockFs.writeFile).toHaveBeenCalled();
     const savedContent = JSON.parse(mockFs.writeFile.mock.calls[0]?.[1] as string);
-    expect(savedContent.version).toBe(2);
+    expect(savedContent.version).toBe(3);
   });
 
-  it("should handle v1 with expired rate limits", async () => {
+  it("should preserve expired rate limits during v1 migration", async () => {
     const pastTime = Date.now() - 60000;
 
     const v1Data: AccountStorageV1 = {
@@ -101,13 +101,17 @@ describe("storage migration", () => {
     const storage = await loadAccounts();
 
     expect(storage).not.toBeNull();
-    expect(storage?.version).toBe(2);
-    expect(storage?.accounts[0]?.rateLimitResetTimes).toBeUndefined();
+    expect(storage?.version).toBe(3);
+    expect(storage?.accounts[0]?.rateLimitResetTimes).toEqual({
+      claude: pastTime,
+      "gemini-flash": pastTime,
+      "gemini-pro": pastTime,
+    });
   });
 
-  it("should load v2 storage directly", async () => {
+  it("should migrate v2 storage to v3", async () => {
     const futureTime = Date.now() + 60000;
-    const v2Data: AccountStorage = {
+    const v2Data: AccountStorageV2 = {
       version: 2,
       activeIndex: 1,
       accounts: [
@@ -115,7 +119,7 @@ describe("storage migration", () => {
           refreshToken: "token1",
           addedAt: Date.now(),
           lastUsed: Date.now(),
-          rateLimitResetTimes: { claude: futureTime },
+          rateLimitResetTimes: { claude: futureTime, gemini: futureTime },
         },
         {
           refreshToken: "token2",
@@ -129,7 +133,113 @@ describe("storage migration", () => {
 
     const storage = await loadAccounts();
 
-    expect(storage).toEqual(v2Data);
+    expect(storage).not.toBeNull();
+    expect(storage?.version).toBe(3);
+    expect(storage?.accounts[0]?.rateLimitResetTimes).toEqual({
+      claude: futureTime,
+      "gemini-flash": futureTime,
+      "gemini-pro": futureTime,
+    });
+    expect(storage?.accounts[1]?.rateLimitResetTimes).toBeUndefined();
+
+    // Verify it saved the migrated data
+    expect(mockFs.writeFile).toHaveBeenCalled();
+    const savedContent = JSON.parse(mockFs.writeFile.mock.calls[0]?.[1] as string);
+    expect(savedContent.version).toBe(3);
+  });
+
+  it("should preserve expired rate limits during v2 migration", async () => {
+    const pastTime = Date.now() - 60000;
+    const v2Data: AccountStorageV2 = {
+      version: 2,
+      activeIndex: 0,
+      accounts: [
+        {
+          refreshToken: "token1",
+          addedAt: pastTime,
+          lastUsed: pastTime,
+          rateLimitResetTimes: { gemini: pastTime },
+        },
+      ],
+    };
+
+    mockFs.readFile.mockImplementation(async () => JSON.stringify(v2Data));
+
+    const storage = await loadAccounts();
+
+    expect(storage).not.toBeNull();
+    expect(storage?.version).toBe(3);
+    expect(storage?.accounts[0]?.rateLimitResetTimes).toEqual({
+      "gemini-flash": pastTime,
+      "gemini-pro": pastTime,
+    });
+  });
+
+  it("should load v3 storage directly", async () => {
+    const futureTime = Date.now() + 60000;
+    const v3Data: AccountStorage = {
+      version: 3,
+      activeIndex: 1,
+      accounts: [
+        {
+          refreshToken: "token1",
+          addedAt: Date.now(),
+          lastUsed: Date.now(),
+          rateLimitResetTimes: { claude: futureTime, "gemini-flash": futureTime },
+        },
+        {
+          refreshToken: "token2",
+          addedAt: Date.now(),
+          lastUsed: Date.now(),
+        },
+      ],
+    };
+
+    mockFs.readFile.mockImplementation(async () => JSON.stringify(v3Data));
+
+    const storage = await loadAccounts();
+
+    expect(storage).toEqual(v3Data);
+    expect(mockFs.writeFile).not.toHaveBeenCalled();
+  });
+
+  it("should preserve tier field in v3 storage", async () => {
+    const now = Date.now();
+    const v3Data: AccountStorage = {
+      version: 3,
+      activeIndex: 0,
+      accounts: [
+        {
+          email: "paid@example.com",
+          tier: "paid",
+          refreshToken: "token1",
+          addedAt: now,
+          lastUsed: now,
+        },
+        {
+          email: "free@example.com",
+          tier: "free",
+          refreshToken: "token2",
+          addedAt: now,
+          lastUsed: now,
+        },
+        {
+          email: "unknown@example.com",
+          refreshToken: "token3",
+          addedAt: now,
+          lastUsed: now,
+        },
+      ],
+    };
+
+    mockFs.readFile.mockImplementation(async () => JSON.stringify(v3Data));
+
+    const storage = await loadAccounts();
+
+    expect(storage).not.toBeNull();
+    expect(storage?.accounts[0]?.tier).toBe("paid");
+    expect(storage?.accounts[1]?.tier).toBe("free");
+    expect(storage?.accounts[2]?.tier).toBeUndefined();
     expect(mockFs.writeFile).not.toHaveBeenCalled();
   });
 
