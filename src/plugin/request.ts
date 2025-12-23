@@ -39,7 +39,11 @@ const MODEL_FALLBACKS: Record<string, string> = {
 };
 
 function getModelFamily(model: string): ModelFamily {
-  return model.includes("claude") ? "claude" : "gemini";
+  return model.includes("claude") 
+    ? "claude" 
+    : model.includes("flash") 
+      ? "gemini-flash" 
+      : "gemini-pro";
 }
 
 export function isGenerativeLanguageRequest(input: RequestInfo): boolean {
@@ -642,7 +646,7 @@ export async function transformAntigravityResponse(
   const contentType = response.headers.get("content-type") ?? "";
   const isJsonResponse = contentType.includes("application/json");
   const isEventStreamResponse = contentType.includes("text/event-stream");
-  const family: ModelFamily = requestedModel ? getModelFamily(requestedModel) : "gemini";
+  const family: ModelFamily = requestedModel ? getModelFamily(requestedModel) : "gemini-flash";
 
   if (!isJsonResponse && !isEventStreamResponse) {
     logAntigravityDebugResponse(debugContext, response, {

@@ -69,7 +69,7 @@ export function clearCachedAuth(refresh?: string): void {
 
 const signatureCache = new Map<string, string>();
 
-export type ModelFamily = "claude" | "gemini";
+export type ModelFamily = "claude" | "gemini-flash" | "gemini-pro";
 
 /**
  * Generates a SHA-256 hash key for a thought block.

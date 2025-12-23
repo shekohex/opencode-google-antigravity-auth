@@ -3,7 +3,7 @@ import type { AntigravityTokenExchangeResult } from "./antigravity/oauth";
 import { authorizeAntigravity, exchangeAntigravity } from "./antigravity/oauth";
 import { ANTIGRAVITY_PROVIDER_ID, MAX_ACCOUNTS } from "./constants";
 import { accessTokenExpired, isOAuthAuth, parseRefreshParts, formatMultiAccountRefresh } from "./plugin/auth";
-import { AccountManager } from "./plugin/accounts";
+import { AccountManager, type AccountTier } from "./plugin/accounts";
 import { openBrowser } from "./plugin/browser";
 import { promptProjectId, promptAddAnotherAccount } from "./plugin/cli";
 import { createAntigravityFetch } from "./plugin/fetch-wrapper";
@@ -35,7 +35,7 @@ async function getAuthContext(
 
   const storedAccounts = await loadAccounts();
   const accountManager = new AccountManager(auth, storedAccounts);
-  const account = accountManager.getCurrentOrNextForFamily("gemini");
+  const account = accountManager.getCurrentOrNextForFamily("gemini-flash");
   if (!account) {
     return null;
   }
@@ -107,7 +107,7 @@ function createGoogleSearchTool(getAuth: GetAuth, client: PluginContext["client"
 async function authenticateSingleAccount(
   client: PluginContext["client"],
   isHeadless: boolean,
-): Promise<{ refresh: string; access: string; expires: number; projectId: string; email?: string } | null> {
+): Promise<{ refresh: string; access: string; expires: number; projectId: string; email?: string; tier?: AccountTier } | null> {
   let listener: OAuthListener | null = null;
   if (!isHeadless) {
     try {
@@ -229,6 +229,7 @@ async function authenticateSingleAccount(
     expires: result.expires,
     projectId: result.projectId,
     email: result.email,
+    tier: result.tier as AccountTier,
   };
 }
 
@@ -280,6 +281,7 @@ export const AntigravityOAuthPlugin = async ({ client }: PluginContext): Promise
               expires: number;
               projectId: string;
               email?: string;
+              tier?: AccountTier;
             }> = [];
 
             const firstAccount = await authenticateSingleAccount(client, isHeadless);
@@ -337,11 +339,12 @@ export const AntigravityOAuthPlugin = async ({ client }: PluginContext): Promise
 
             try {
               await saveAccounts({
-                version: 2,
+                version: 3,
                 accounts: accounts.map((acc, index) => ({
                   email: acc.email,
                   refreshToken: acc.refresh,
                   projectId: acc.projectId,
+                  tier: acc.tier,
                   managedProjectId: undefined,
                   addedAt: Date.now(),
                   lastUsed: index === 0 ? Date.now() : 0,

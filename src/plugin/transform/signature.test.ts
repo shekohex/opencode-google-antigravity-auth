@@ -12,7 +12,11 @@ const THOUGHT_SIGNATURE_BYPASS = "skip_thought_signature_validator";
 const VALID_CLAUDE_SIGNATURE = "RXJRQ0NrZ0lDaEFDR0FJcVFKdmIzVzdUKzcyNE9nS29LTVdocXpIOEVuZFB3VzltelFLZENYT2xTMWs5dXF3RUdNcTMzTEJuaW1keTdBUjhGSUVyVG1IMnk2SVQvYjJaMTFnL3pPRVNES2NoYmVWZzk1LzBMaE50dGhvTUJWUFVJRmxNZU5qSzJzNERJakJXdFhJeVg0ZUJBZ1p4Zk9hYkNBWER6SHRvb2ZtMVQ2SjZodWdwbXFzSHllR3RjeERLd2JicWJJUzRvQStzTm9jcW1RR0MyTUFKUmNBSXRMc3drSFNNK09DcWhPNWZlNWxtNERIN0pJdnluamFBcEVrMUtsZithWjBwZWgyb1ZrZlUyQmVwZVByc3k3UWJVcWFmc3dBSVl6QkNlY1BISTA4bmpneUlBT";
 
 function createContext(model: string): TransformContext {
-  const family: ModelFamily = model.includes("claude") ? "claude" : "gemini";
+  const family: ModelFamily = model.includes("claude") 
+    ? "claude" 
+    : model.includes("flash") 
+      ? "gemini-flash" 
+      : "gemini-pro";
   return {
     model,
     family,
@@ -613,7 +617,7 @@ describe("thoughtSignature handling", () => {
       const thinkingText = "Gemini thinking that should be restored...";
       const VALID_GEMINI_SIGNATURE = "GeminiValidSignatureXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
       
-      cacheSignature("gemini", "test-session-id", thinkingText, VALID_GEMINI_SIGNATURE);
+      cacheSignature("gemini-pro", "test-session-id", thinkingText, VALID_GEMINI_SIGNATURE);
 
       const geminiPayload: RequestPayload = {
         contents: [
@@ -655,7 +659,7 @@ describe("thoughtSignature handling", () => {
       const thinkingText = "Gemini's own thinking...";
       const VALID_GEMINI_SIGNATURE = "GeminiValidSignatureYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY";
       
-      cacheSignature("gemini", "test-session-id", thinkingText, VALID_GEMINI_SIGNATURE);
+      cacheSignature("gemini-pro", "test-session-id", thinkingText, VALID_GEMINI_SIGNATURE);
       
       const payload: RequestPayload = {
         contents: [

@@ -2,7 +2,7 @@ import { describe, it, expect } from "bun:test";
 import { AccountManager, type ModelFamily } from "./accounts";
 import type { OAuthAuthDetails } from "./types";
 
-const FAMILY: ModelFamily = "gemini";
+const FAMILY: ModelFamily = "gemini-flash";
 
 describe("AccountManager", () => {
   it("should initialize with single account", () => {
@@ -149,7 +149,7 @@ describe("AccountManager", () => {
     const claudeAccount = manager.getCurrentOrNextForFamily("claude");
     expect(claudeAccount).toBeNull();
 
-    const geminiAccount = manager.getCurrentOrNextForFamily("gemini");
+    const geminiAccount = manager.getCurrentOrNextForFamily("gemini-flash");
     expect(geminiAccount).not.toBeNull();
     expect(geminiAccount?.index).toBe(0);
   });

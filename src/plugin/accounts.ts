@@ -5,9 +5,9 @@ import {
   parseRefreshParts,
   formatRefreshParts,
 } from "./auth";
-import { saveAccounts, type AccountStorage, type RateLimitState, type ModelFamily } from "./storage";
+import { saveAccounts, type AccountStorage, type RateLimitState, type ModelFamily, type AccountTier } from "./storage";
 
-export type { ModelFamily } from "./storage";
+export type { ModelFamily, AccountTier } from "./storage";
 
 export interface ManagedAccount {
   index: number;
@@ -17,6 +17,7 @@ export interface ManagedAccount {
   rateLimitResetTimes: RateLimitState;
   lastUsed: number;
   email?: string;
+  tier?: AccountTier;
   lastSwitchReason?: "rate-limit" | "initial" | "rotation";
 }
 
@@ -30,8 +31,11 @@ function clearExpiredRateLimits(account: ManagedAccount): void {
   if (account.rateLimitResetTimes.claude !== undefined && now >= account.rateLimitResetTimes.claude) {
     delete account.rateLimitResetTimes.claude;
   }
-  if (account.rateLimitResetTimes.gemini !== undefined && now >= account.rateLimitResetTimes.gemini) {
-    delete account.rateLimitResetTimes.gemini;
+  if (account.rateLimitResetTimes["gemini-flash"] !== undefined && now >= account.rateLimitResetTimes["gemini-flash"]) {
+    delete account.rateLimitResetTimes["gemini-flash"];
+  }
+  if (account.rateLimitResetTimes["gemini-pro"] !== undefined && now >= account.rateLimitResetTimes["gemini-pro"]) {
+    delete account.rateLimitResetTimes["gemini-pro"];
   }
 }
 
@@ -67,6 +71,7 @@ export class AccountManager {
         rateLimitResetTimes: acc.rateLimitResetTimes ?? {},
         lastUsed: acc.lastUsed,
         email: acc.email,
+        tier: acc.tier,
         lastSwitchReason: acc.lastSwitchReason,
       }));
     } else {
@@ -99,9 +104,10 @@ export class AccountManager {
 
   async save(): Promise<void> {
     const storage: AccountStorage = {
-      version: 2,
+      version: 3,
       accounts: this.accounts.map((acc) => ({
         email: acc.email,
+        tier: acc.tier,
         refreshToken: acc.parts.refreshToken,
         projectId: acc.parts.projectId,
         managedProjectId: acc.parts.managedProjectId,
@@ -133,12 +139,19 @@ export class AccountManager {
   }
 
   getCurrentOrNextForFamily(family: ModelFamily): ManagedAccount | null {
+    this.accounts.forEach(clearExpiredRateLimits);
+
     const current = this.getCurrentAccount();
     if (current) {
-      clearExpiredRateLimits(current);
       if (!isRateLimitedForFamily(current, family)) {
-        current.lastUsed = Date.now();
-        return current;
+        const betterTierAvailable =
+          current.tier !== "paid" &&
+          this.accounts.some((a) => a.tier === "paid" && !isRateLimitedForFamily(a, family));
+
+        if (!betterTierAvailable) {
+          current.lastUsed = Date.now();
+          return current;
+        }
       }
     }
 
@@ -150,16 +163,17 @@ export class AccountManager {
   }
 
   getNextForFamily(family: ModelFamily): ManagedAccount | null {
-    const available = this.accounts.filter((a) => {
-      clearExpiredRateLimits(a);
-      return !isRateLimitedForFamily(a, family);
-    });
+    const available = this.accounts.filter((a) => !isRateLimitedForFamily(a, family));
 
     if (available.length === 0) {
       return null;
     }
 
-    const account = available[this.currentIndex % available.length];
+    // Prioritize paid accounts
+    const paidAvailable = available.filter((a) => a.tier === "paid");
+    const pool = paidAvailable.length > 0 ? paidAvailable : available;
+
+    const account = pool[this.currentIndex % pool.length];
     if (!account) {
       return null;
     }
@@ -195,7 +209,7 @@ export class AccountManager {
     };
   }
 
-  addAccount(parts: RefreshParts, access?: string, expires?: number, email?: string): void {
+  addAccount(parts: RefreshParts, access?: string, expires?: number, email?: string, tier?: AccountTier): void {
     this.accounts.push({
       index: this.accounts.length,
       parts,
@@ -204,6 +218,7 @@ export class AccountManager {
       rateLimitResetTimes: {},
       lastUsed: 0,
       email,
+      tier,
     });
   }
 

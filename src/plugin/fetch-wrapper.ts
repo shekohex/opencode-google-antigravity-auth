@@ -52,7 +52,10 @@ function getModelFamilyFromUrl(urlString: string): ModelFamily {
   if (model && model.includes("claude")) {
     return "claude";
   }
-  return "gemini";
+  if (model && model.includes("flash")) {
+    return "gemini-flash";
+  }
+  return "gemini-pro";
 }
 
 export function sleep(ms: number, signal?: AbortSignal | null): Promise<void> {
@@ -464,6 +467,7 @@ async function handleServerError(
 ): Promise<EndpointLoopResult> {
   const retryAfterMs = 60000;
 
+  // For 500 errors, we use a fixed short retry (1 min) rather than the heavy defaults
   accountManager.markRateLimited(account, retryAfterMs, family);
 
   log.warn(`Account ${account.index + 1}/${accountCount} received ${response.status} error on all endpoints`, {

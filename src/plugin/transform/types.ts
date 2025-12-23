@@ -1,4 +1,4 @@
-export type ModelFamily = "claude" | "gemini";
+export type ModelFamily = "claude" | "gemini-flash" | "gemini-pro";
 
 /**
  * Context passed to request transformers containing model info and session metadata.

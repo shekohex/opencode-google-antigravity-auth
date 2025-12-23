@@ -32,6 +32,7 @@ interface AntigravityTokenExchangeSuccess {
   expires: number;
   email?: string;
   projectId: string;
+  tier?: "free" | "paid";
 }
 
 interface AntigravityTokenExchangeFailure {
@@ -72,10 +73,10 @@ function decodeState(state: string): AntigravityAuthState {
 }
 
 /**
- * Automatically discover project ID from Antigravity API.
- * Tries multiple endpoints to find the user's default project.
+ * Automatically discover project ID and account tier from Antigravity API.
+ * Tries multiple endpoints to find the user's default project and tier.
  */
-async function fetchProjectID(accessToken: string): Promise<string> {
+async function fetchAccountInfo(accessToken: string): Promise<{ projectId: string; tier: "free" | "paid" }> {
   const errors: string[] = [];
   
   const loadHeaders: Record<string, string> = {
@@ -110,15 +111,38 @@ async function fetchProjectID(accessToken: string): Promise<string> {
       }
 
       const data = await response.json();
+      let projectId = "";
+      let tier: "free" | "paid" = "free";
+
+      // Extract Project ID
       if (typeof data.cloudaicompanionProject === "string" && data.cloudaicompanionProject) {
-        return data.cloudaicompanionProject;
-      }
-      if (
+        projectId = data.cloudaicompanionProject;
+      } else if (
         data.cloudaicompanionProject &&
         typeof data.cloudaicompanionProject.id === "string" &&
         data.cloudaicompanionProject.id
       ) {
-        return data.cloudaicompanionProject.id;
+        projectId = data.cloudaicompanionProject.id;
+      }
+
+      // Extract Tier
+      // Default to "free" (legacy-tier), check for paid indicators
+      if (Array.isArray(data.allowedTiers)) {
+        const defaultTier = data.allowedTiers.find((t: any) => t.isDefault);
+        if (defaultTier && typeof defaultTier.id === "string") {
+          const tierId = defaultTier.id;
+          // "legacy-tier" is the default free tier. Anything else is likely paid/upgraded.
+          // We can refine this list as we learn more about tier IDs.
+          if (tierId !== "legacy-tier" && !tierId.includes("free") && !tierId.includes("zero")) {
+            tier = "paid";
+          } else if (tierId !== "legacy-tier") {
+             console.debug(`[antigravity] Detected free tier variant: ${tierId}`);
+          }
+        }
+      }
+
+      if (projectId) {
+        return { projectId, tier };
       }
 
       errors.push(`loadCodeAssist missing project id at ${baseEndpoint}`);
@@ -132,9 +156,9 @@ async function fetchProjectID(accessToken: string): Promise<string> {
   }
 
   if (errors.length) {
-    console.warn("Failed to resolve Antigravity project via loadCodeAssist:", errors.join("; "));
+    console.warn("Failed to resolve Antigravity account info via loadCodeAssist:", errors.join("; "));
   }
-  return "";
+  return { projectId: "", tier: "free" };
 }
 
 export async function authorizeAntigravity(projectId = ""): Promise<AntigravityAuthorization> {
@@ -208,11 +232,14 @@ export async function exchangeAntigravity(
       return { type: "failed", error: "Missing refresh token in response" };
     }
 
-    // Auto-discover project ID if not provided
+    // Auto-discover project ID and tier if not provided, or fetch tier if project ID is provided
     let effectiveProjectId = projectId;
+
+    const accountInfo = await fetchAccountInfo(tokenPayload.access_token);
     if (!effectiveProjectId) {
-      effectiveProjectId = await fetchProjectID(tokenPayload.access_token);
+      effectiveProjectId = accountInfo.projectId;
     }
+    const tier = accountInfo.tier;
 
     // Don't embed email in refresh token - we store it separately in accounts.json
     const storedRefresh = `${refreshToken}|${effectiveProjectId || ""}`;
@@ -224,6 +251,7 @@ export async function exchangeAntigravity(
       expires: Date.now() + tokenPayload.expires_in * 1000,
       email: userInfo.email,
       projectId: effectiveProjectId || "",
+      tier,
     };
   } catch (error) {
     return {
