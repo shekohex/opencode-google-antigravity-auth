@@ -1,12 +1,12 @@
 import { generatePKCE } from "@openauthjs/openauth/pkce";
 
 import {
-    ANTIGRAVITY_CLIENT_ID,
-    ANTIGRAVITY_CLIENT_SECRET,
-    ANTIGRAVITY_REDIRECT_URI,
-    ANTIGRAVITY_SCOPES,
-    CODE_ASSIST_ENDPOINT_FALLBACKS,
-    CODE_ASSIST_HEADERS,
+  ANTIGRAVITY_CLIENT_ID,
+  ANTIGRAVITY_CLIENT_SECRET,
+  ANTIGRAVITY_REDIRECT_URI,
+  ANTIGRAVITY_SCOPES,
+  CODE_ASSIST_ENDPOINT_FALLBACKS,
+  CODE_ASSIST_HEADERS,
 } from "../constants";
 
 interface PkcePair {
@@ -78,7 +78,7 @@ function decodeState(state: string): AntigravityAuthState {
  */
 async function fetchAccountInfo(accessToken: string): Promise<{ projectId: string; tier: "free" | "paid" }> {
   const errors: string[] = [];
-  
+
   const loadHeaders: Record<string, string> = {
     Authorization: `Bearer ${accessToken}`,
     "Content-Type": "application/json",
@@ -103,8 +103,7 @@ async function fetchAccountInfo(accessToken: string): Promise<{ projectId: strin
       if (!response.ok) {
         const message = await response.text().catch(() => "");
         errors.push(
-          `loadCodeAssist ${response.status} at ${baseEndpoint}${
-            message ? `: ${message}` : ""
+          `loadCodeAssist ${response.status} at ${baseEndpoint}${message ? `: ${message}` : ""
           }`,
         );
         continue;
@@ -136,8 +135,17 @@ async function fetchAccountInfo(accessToken: string): Promise<{ projectId: strin
           if (tierId !== "legacy-tier" && !tierId.includes("free") && !tierId.includes("zero")) {
             tier = "paid";
           } else if (tierId !== "legacy-tier") {
-             console.debug(`[antigravity] Detected free tier variant: ${tierId}`);
+            console.debug(`[antigravity] Detected free tier variant: ${tierId}`);
           }
+        }
+      }
+
+      // Explicitly check for paidTier field (e.g. Google One AI Pro) which overrides default project tier
+      if (data.paidTier && typeof data.paidTier.id === "string") {
+        const paidTierId = data.paidTier.id;
+        if (!paidTierId.includes("free") && !paidTierId.includes("zero")) {
+          tier = "paid";
+          console.debug(`[antigravity] Detected paid tier from paidTier field: ${paidTierId}`);
         }
       }
 
@@ -148,8 +156,7 @@ async function fetchAccountInfo(accessToken: string): Promise<{ projectId: strin
       errors.push(`loadCodeAssist missing project id at ${baseEndpoint}`);
     } catch (e) {
       errors.push(
-        `loadCodeAssist error at ${baseEndpoint}: ${
-          e instanceof Error ? e.message : String(e)
+        `loadCodeAssist error at ${baseEndpoint}: ${e instanceof Error ? e.message : String(e)
         }`,
       );
     }
