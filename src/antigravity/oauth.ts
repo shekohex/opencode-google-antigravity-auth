@@ -76,8 +76,9 @@ function decodeState(state: string): AntigravityAuthState {
  * Automatically discover project ID and account tier from Antigravity API.
  * Tries multiple endpoints to find the user's default project and tier.
  */
-async function fetchAccountInfo(accessToken: string): Promise<{ projectId: string; tier: "free" | "paid" }> {
+export async function fetchAccountInfo(accessToken: string): Promise<{ projectId: string; tier: "free" | "paid" }> {
   const errors: string[] = [];
+  let detectedTier: "free" | "paid" = "free";
 
   const loadHeaders: Record<string, string> = {
     Authorization: `Bearer ${accessToken}`,
@@ -111,7 +112,6 @@ async function fetchAccountInfo(accessToken: string): Promise<{ projectId: strin
 
       const data = await response.json();
       let projectId = "";
-      let tier: "free" | "paid" = "free";
 
       // Extract Project ID
       if (typeof data.cloudaicompanionProject === "string" && data.cloudaicompanionProject) {
@@ -124,33 +124,28 @@ async function fetchAccountInfo(accessToken: string): Promise<{ projectId: strin
         projectId = data.cloudaicompanionProject.id;
       }
 
-      // Extract Tier
-      // Default to "free" (legacy-tier), check for paid indicators
       if (Array.isArray(data.allowedTiers)) {
         const defaultTier = data.allowedTiers.find((t: any) => t.isDefault);
         if (defaultTier && typeof defaultTier.id === "string") {
           const tierId = defaultTier.id;
-          // "legacy-tier" is the default free tier. Anything else is likely paid/upgraded.
-          // We can refine this list as we learn more about tier IDs.
           if (tierId !== "legacy-tier" && !tierId.includes("free") && !tierId.includes("zero")) {
-            tier = "paid";
+            detectedTier = "paid";
           } else if (tierId !== "legacy-tier") {
             console.debug(`[antigravity] Detected free tier variant: ${tierId}`);
           }
         }
       }
 
-      // Explicitly check for paidTier field (e.g. Google One AI Pro) which overrides default project tier
       if (data.paidTier && typeof data.paidTier.id === "string") {
         const paidTierId = data.paidTier.id;
         if (!paidTierId.includes("free") && !paidTierId.includes("zero")) {
-          tier = "paid";
+          detectedTier = "paid";
           console.debug(`[antigravity] Detected paid tier from paidTier field: ${paidTierId}`);
         }
       }
 
       if (projectId) {
-        return { projectId, tier };
+        return { projectId, tier: detectedTier };
       }
 
       errors.push(`loadCodeAssist missing project id at ${baseEndpoint}`);
@@ -165,7 +160,7 @@ async function fetchAccountInfo(accessToken: string): Promise<{ projectId: strin
   if (errors.length) {
     console.warn("Failed to resolve Antigravity account info via loadCodeAssist:", errors.join("; "));
   }
-  return { projectId: "", tier: "free" };
+  return { projectId: "", tier: detectedTier };
 }
 
 export async function authorizeAntigravity(projectId = ""): Promise<AntigravityAuthorization> {

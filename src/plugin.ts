@@ -368,6 +368,7 @@ export const AntigravityOAuthPlugin = async ({ client }: PluginContext): Promise
                   expires: firstAcc.expires,
                   email: firstAcc.email,
                   projectId: firstAcc.projectId,
+                  tier: firstAcc.tier,
                 };
               },
             };
