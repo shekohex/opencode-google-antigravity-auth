@@ -1,177 +1,61 @@
-# Antigravity OAuth Plugin for Opencode
+# Opencode Antigravity OAuth Plugin
 
-Authenticate the Opencode CLI with your Antigravity (Cloud Code) account so you can use the Antigravity-backed Gemini models with your existing quota.
+Use your Antigravity model quota with the Opencode coding agent.
 
 ## Features
 
 - **Multi-Account Load Balancing** - Automatically rotates between multiple Google accounts when hitting rate limits
-- **Endpoint Fallback** - Tries 3 endpoints (daily → autopush → prod) for maximum reliability
 - **Google Search Tool** - Built-in web search with URL analysis and source citations
-- **Cross-Model Conversations** - Seamlessly switch between Gemini and Claude with thinking block preservation
-- **Automatic Token Refresh** - Handles auth transparently with no manual intervention
+- **Ease of Use** - Uses Opencode's built-in transparent auth, and tries multiple endpoints for reliability
+- **Cross-Model Conversations** - Switch between Gemini and Claude with thinking block preservation
+- **Automatic Token Refresh** - Handles auth transparently
 
-## Setup
+## Installation
 
-1. Add the plugin to your [Opencode config](https://opencode.ai/docs/config/):
-
+1. Add to your [Opencode config](https://opencode.ai/docs/config/):
+   
    ```json
    {
      "$schema": "https://opencode.ai/config.json",
      "plugin": ["opencode-google-antigravity-auth"]
    }
    ```
+2. Run `opencode auth login`
+3. Select the Google provider and **OAuth with Google (Antigravity)**
+4. Authenticate in your browser
+5. (Optional) Add additional accounts for load balancing when prompted
 
-2. Run `opencode auth login`.
-3. Choose the Google provider and select **OAuth with Google (Antigravity)**.
-4. Authenticate with your first Google account in the browser.
-5. **Optional:** Add more accounts for load balancing when prompted.
-
-The plugin spins up a local callback listener on `http://localhost:36742/oauth-callback`, so after approving in the browser you'll land on an "Authentication complete" page with no URL copy/paste required. If that port is already taken or you're headless, the CLI automatically falls back to the copy/paste flow and explains what to do.
+The plugin listens on `http://localhost:36742/oauth-callback`. If that port is unavailable or you're headless, it falls back to a copy/paste flow.
 
 ## Multi-Account Load Balancing
 
-The plugin supports **automatic rotation across multiple Google accounts** to work around rate limits.
+Add up to 10 Google accounts to rotate through when hitting rate limits.
 
-### How It Works
+- **Sticky selection** - Uses the same account until it errors
+- **Auto-rotation** - Switches on 429 or 5xx responses
+- **Smart recovery** - Re-enables accounts after rate limit timeout
 
-- **Sticky Account Selection**: Uses the same account for all requests until it hits an error
-- **Automatic Rotation**: When rate-limited (429) or server errors (5xx), switches to next account
-- **Smart Recovery**: Automatically re-enables accounts after rate limit timeout expires
-- **Email Tracking**: Shows which account is in use for easy debugging
-
-### Setup Multiple Accounts
-
-During `opencode auth login`, you'll be prompted to add additional accounts:
-
-```
-✓ Account 1 authenticated (user@gmail.com)
-You have 1 account(s) configured. Add another? (y/n): y
-```
-
-You can add up to 10 accounts. The plugin stores account metadata in `$XDG_DATA_HOME/opencode/antigravity-accounts.json` (for example `~/.local/share/opencode/antigravity-accounts.json`).
-
-### When To Use Multi-Account
-
-- **High Volume Usage**: If you frequently hit Antigravity rate limits
-- **Production Workflows**: Need maximum uptime for automated tasks
-- **Team Environments**: Share quota across multiple Google accounts
-
-### Monitoring
-
-The plugin logs account switches:
-```
-[INFO] Using account 1/3 (user@gmail.com)
-[INFO] Account 1/3 rate-limited, switching...
-[INFO] Using account 2/3 (user2@gmail.com)
-```
-
-Toast notifications also appear when switching accounts.
+Account metadata is stored in `$XDG_DATA_HOME/opencode/antigravity-accounts.json`.
 
 ## Google Search Tool
 
-The plugin exposes a `google_search` tool that allows models to fetch real-time information from the web using Google Search and URL context analysis.
+The `google_search` tool enables real-time web search and URL analysis. Due to Gemini API limitations, native search tools can't be combined with custom tools in the same request—the plugin works around this by making separate API calls with only search tools enabled.
 
-### How It Works
-
-Due to Gemini API limitations, native search tools (`googleSearch`, `urlContext`) cannot be combined with function declarations (custom tools like `bash`, `read`, `write`) in the same request. The plugin solves this by implementing `google_search` as a **wrapper tool** that makes separate API calls to Gemini with only native search tools enabled.
-
-```
-Agent (with custom tools: bash, read, write, etc.)
-    │
-    └── Calls google_search tool
-            │
-            └── Makes SEPARATE API call to Gemini with:
-                - Model: gemini-2.5-flash
-                - Tools: [{ googleSearch: {} }, { urlContext: {} }]
-                - Returns formatted markdown with sources
-```
-
-### Features
-
-- **Web Search**: Query Google Search for real-time information
-- **URL Analysis**: Fetch and analyze specific URLs when provided
-- **Source Citations**: Returns grounded responses with source links
-- **Thinking Mode**: Optional deep analysis with configurable thinking budget
-
-### Usage
-
-The tool is automatically available to models that support tool use. Simply ask questions that require current information:
-
-```
-"What are the latest news about AI?"
-"Summarize this article: https://example.com/article"
-"What's the current stock price of AAPL?"
-```
-
-When you provide URLs in your query, the model will automatically extract and analyze them.
-
-### Supported Models
-
-All models can use the `google_search` tool since it makes independent API calls:
-- **Gemini models** (2.5 Flash, 3 Pro, 3 Flash, etc.)
-- **Claude models** (via Antigravity proxy)
-
-## Updating
-
-> [!WARNING]
-> Opencode does NOT auto-update plugins.
-
-To get the latest version, clear the cached plugin and let Opencode reinstall it:
-
-```bash
-rm -rf ~/.cache/opencode/node_modules/opencode-google-antigravity-auth
-opencode
-```
-
-Alternatively, remove the dependency from `~/.cache/opencode/package.json` if the above doesn't work.
+Works with all models (Gemini and Claude via proxy).
 
 ## Thinking Configuration
 
-Antigravity forwards Gemini model options, including `thinkingConfig`:
+Configure thinking via `thinkingConfig` in your model options:
 
-* `thinkingLevel` for Gemini 3 models (`"low" | "medium" | "high"`).
-* `thinkingBudget` for Gemini 2.5 models (number).
-
-### Examples
+- **Gemini 3 models**: Use `thinkingLevel` (`"low"`, `"medium"`, `"high"`)
+- **Gemini 2.5 / Claude models**: Use `thinkingBudget` (number)
 
 ```json
 {
-  "provider": {
-    "antigravity": {
-      "models": {
-        "gemini-3-pro-preview": {
-          "options": {
-            "thinkingConfig": {
-              "thinkingLevel": "high",
-              "includeThoughts": true
-            }
-          }
-        },
-        "gemini-3-flash": {
-          "options": {
-            "thinkingConfig": {
-              "thinkingLevel": "medium",
-              "includeThoughts": true
-            }
-          }
-        },
-        "gemini-2.5-flash": {
-          "options": {
-            "thinkingConfig": {
-              "thinkingBudget": 8192,
-              "includeThoughts": true
-            }
-          }
-        },
-        "gemini-claude-opus-4-5-thinking": {
-          "options": {
-            "thinkingConfig": {
-              "thinkingBudget": 32000,
-              "includeThoughts": true
-            }
-          }
-        }
-      }
+  "options": {
+    "thinkingConfig": {
+      "thinkingLevel": "high",
+      "includeThoughts": true
     }
   }
 }
@@ -179,42 +63,52 @@ Antigravity forwards Gemini model options, including `thinkingConfig`:
 
 ## Claude Proxy Models
 
-Antigravity provides access to Claude models via `gemini-claude-*` model names. The plugin automatically transforms tool schemas for Claude compatibility.
+Access Claude models via `gemini-claude-*` names:
 
-### Available Claude Models
-- `gemini-claude-sonnet-4-5` - Claude Sonnet 4.5
-- `gemini-claude-sonnet-4-5-thinking` - Claude Sonnet 4.5 with thinking
-- `gemini-claude-opus-4-5-thinking` - Claude Opus 4.5 with thinking
+- `gemini-claude-sonnet-4-5`
+- `gemini-claude-sonnet-4-5-thinking`
+- `gemini-claude-opus-4-5-thinking`
 
-### Interleaved Thinking Support
+Models with `-thinking` suffix automatically enable interleaved thinking (`anthropic-beta: interleaved-thinking-2025-05-14`), allowing Claude to reason between tool calls.
 
-When you use any Claude thinking model (models with `-thinking` suffix), the plugin automatically enables **interleaved thinking** by adding the `anthropic-beta: interleaved-thinking-2025-05-14` header to your requests.
+## Cross-Model Conversations
 
-**What is Interleaved Thinking?**
+Switching between Claude and Gemini mid-conversation is supported. Thinking blocks are cached per model family—when switching families, the other family's thinking blocks are removed but text content is preserved.
 
-Without interleaved thinking, Claude thinks once at the beginning and then executes all tool calls. With interleaved thinking enabled, Claude can think *between* tool calls, allowing it to:
+## Updating
 
-- **Reason about tool results** before deciding what to do next
-- **Chain multiple tool calls** with reasoning steps in between
-- **Make more nuanced decisions** based on intermediate results
-- **Adapt its approach** as it learns more from each tool interaction
+Opencode does not auto-update plugins. To update:
 
-**Why This Matters for Coding Agents**
+```bash
+rm -rf ~/.cache/opencode/node_modules/opencode-google-antigravity-auth
+opencode
+```
 
-AI coding tools like Opencode heavily rely on tool use (reading files, searching code, running commands). Interleaved thinking significantly improves the quality of multi-step coding tasks because Claude can:
+## Troubleshooting
 
-1. Read a file → *think about what it found* → decide which file to read next
-2. Run a test → *analyze the failure* → make a targeted fix
-3. Search for a pattern → *reason about the results* → refine the search
+### Image Support
 
-**Automatic Enablement**
+Add `modalities` to model definitions to enable image input:
 
-You don't need to configure anything - when you use any `-thinking` Claude model variant, the plugin automatically:
-- Detects the thinking model from the model name suffix
-- Injects the `anthropic-beta: interleaved-thinking-2025-05-14` header
-- Merges with any existing beta headers (e.g., for prompt caching)
+```json
+"modalities": { "input": ["text", "image"], "output": ["text"] }
+```
 
-This is enabled by default because if you're opting into extended thinking, you almost certainly want the improved reasoning that interleaved thinking provides for tool-heavy workflows.
+### Tool Name Compatibility
+
+Gemini requires tool names to match `^[a-zA-Z_][a-zA-Z0-9_-]*$`. The plugin auto-prefixes `t_` to names starting with digits. Disable problematic tools via config if needed.
+
+### Incompatible Plugins
+
+[`opencode-skills`](https://github.com/malhashemi/opencode-skills) is incompatible—use [openskills](https://github.com/numman-ali/openskills) instead.
+
+## Debugging
+
+```bash
+opencode --log-level DEBUG --print-logs
+```
+
+Logs are stored in `~/.local/share/opencode/logs/`.
 
 ## Local Development
 
@@ -224,292 +118,18 @@ cd opencode-google-antigravity-auth
 bun install
 ```
 
-To load a local checkout in Opencode:
+Load locally:
 
 ```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "plugin": ["file:///absolute/path/to/opencode-google-antigravity-auth"]
-}
+{ "plugin": ["file:///absolute/path/to/opencode-google-antigravity-auth"] }
 ```
 
-## Example Opencode config with provider/models
+## Example Config
 
-You should copy that config to your opencode config file.
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-google-antigravity-auth"],
-  "provider": {
-    "google": {
-      "npm": "@ai-sdk/google",
-      "models": {
-        "gemini-3-pro-preview": {
-          "id": "gemini-3-pro-preview",
-          "name": "Gemini 3 Pro Preview",
-          "release_date": "2025-11-18",
-          "reasoning": true,
-          "limit": { "context": 1000000, "output": 64000 },
-          "cost": { "input": 2, "output": 12, "cache_read": 0.2 },
-          "modalities": { "input": ["text", "image", "video", "audio", "pdf"], "output": ["text"] }
-        },
-        "gemini-3-pro-high": {
-          "id": "gemini-3-pro-preview",
-          "name": "Gemini 3 Pro Preview (High Thinking)",
-          "options": { "thinkingConfig": { "thinkingLevel": "high", "includeThoughts": true } }
-        },
-        "gemini-3-pro-medium": {
-          "id": "gemini-3-pro-preview",
-          "name": "Gemini 3 Pro Preview (Medium Thinking)",
-          "options": { "thinkingConfig": { "thinkingLevel": "medium", "includeThoughts": true } }
-        },
-        "gemini-3-pro-low": {
-          "id": "gemini-3-pro-preview",
-          "name": "Gemini 3 Pro Preview (Low Thinking)",
-          "options": { "thinkingConfig": { "thinkingLevel": "low", "includeThoughts": true } }
-        },
-        "gemini-3-flash": {
-          "id": "gemini-3-flash",
-          "name": "Gemini 3 Flash",
-          "release_date": "2025-12-17",
-          "reasoning": true,
-          "limit": { "context": 1048576, "output": 65536 },
-          "cost": { "input": 0.5, "output": 3, "cache_read": 0.05 },
-          "modalities": { "input": ["text", "image", "video", "audio", "pdf"], "output": ["text"] }
-        },
-        "gemini-3-flash-high": {
-          "id": "gemini-3-flash",
-          "name": "Gemini 3 Flash (High Thinking)",
-          "options": { "thinkingConfig": { "thinkingLevel": "high", "includeThoughts": true } }
-        },
-        "gemini-3-flash-medium": {
-          "id": "gemini-3-flash",
-          "name": "Gemini 3 Flash (Medium Thinking)",
-          "options": { "thinkingConfig": { "thinkingLevel": "medium", "includeThoughts": true } }
-        },
-        "gemini-3-flash-low": {
-          "id": "gemini-3-flash",
-          "name": "Gemini 3 Flash (Low Thinking)",
-          "options": { "thinkingConfig": { "thinkingLevel": "low", "includeThoughts": true } }
-        },
-        "gemini-2.5-flash": {
-          "id": "gemini-2.5-flash",
-          "name": "Gemini 2.5 Flash",
-          "release_date": "2025-03-20",
-          "reasoning": true,
-          "limit": { "context": 1048576, "output": 65536 },
-          "cost": { "input": 0.3, "output": 2.5, "cache_read": 0.075 },
-          "modalities": { "input": ["text", "image", "audio", "video", "pdf"], "output": ["text"] }
-        },
-        "gemini-2.5-flash-lite": {
-          "id": "gemini-2.5-flash-lite",
-          "name": "Gemini 2.5 Flash Lite",
-          "release_date": "2025-06-17",
-          "reasoning": true,
-          "limit": { "context": 1048576, "output": 65536 },
-          "cost": { "input": 0.1, "output": 0.4, "cache_read": 0.025 },
-          "modalities": { "input": ["text", "image", "audio", "video", "pdf"], "output": ["text"] }
-        },
-        "gemini-claude-sonnet-4-5-thinking-high": {
-          "id": "gemini-claude-sonnet-4-5-thinking",
-          "name": "Claude Sonnet 4.5 (High Thinking)",
-          "release_date": "2025-11-18",
-          "reasoning": true,
-          "limit": { "context": 200000, "output": 64000 },
-          "cost": { "input": 3, "output": 15, "cache_read": 0.3 },
-          "modalities": { "input": ["text", "image", "pdf"], "output": ["text"] },
-          "options": { "thinkingConfig": { "thinkingBudget": 32000, "includeThoughts": true } }
-        },
-        "gemini-claude-sonnet-4-5-thinking-medium": {
-          "id": "gemini-claude-sonnet-4-5-thinking",
-          "name": "Claude Sonnet 4.5 (Medium Thinking)",
-          "release_date": "2025-11-18",
-          "reasoning": true,
-          "limit": { "context": 200000, "output": 64000 },
-          "cost": { "input": 3, "output": 15, "cache_read": 0.3 },
-          "modalities": { "input": ["text", "image", "pdf"], "output": ["text"] },
-          "options": { "thinkingConfig": { "thinkingBudget": 16000, "includeThoughts": true } }
-        },
-        "gemini-claude-sonnet-4-5-thinking-low": {
-          "id": "gemini-claude-sonnet-4-5-thinking",
-          "name": "Claude Sonnet 4.5 (Low Thinking)",
-          "release_date": "2025-11-18",
-          "reasoning": true,
-          "limit": { "context": 200000, "output": 64000 },
-          "cost": { "input": 3, "output": 15, "cache_read": 0.3 },
-          "modalities": { "input": ["text", "image", "pdf"], "output": ["text"] },
-          "options": { "thinkingConfig": { "thinkingBudget": 4000, "includeThoughts": true } }
-        },
-        "gemini-claude-opus-4-5-thinking-high": {
-          "id": "gemini-claude-opus-4-5-thinking",
-          "name": "Claude Opus 4.5 (High Thinking)",
-          "release_date": "2025-11-24",
-          "reasoning": true,
-          "limit": { "context": 200000, "output": 64000 },
-          "cost": { "input": 5, "output": 25, "cache_read": 0.5 },
-          "modalities": { "input": ["text", "image", "pdf"], "output": ["text"] },
-          "options": { "thinkingConfig": { "thinkingBudget": 32000, "includeThoughts": true } }
-        },
-        "gemini-claude-opus-4-5-thinking-medium": {
-          "id": "gemini-claude-opus-4-5-thinking",
-          "name": "Claude Opus 4.5 (Medium Thinking)",
-          "release_date": "2025-11-24",
-          "reasoning": true,
-          "limit": { "context": 200000, "output": 64000 },
-          "cost": { "input": 5, "output": 25, "cache_read": 0.5 },
-          "modalities": { "input": ["text", "image", "pdf"], "output": ["text"] },
-          "options": { "thinkingConfig": { "thinkingBudget": 16000, "includeThoughts": true } }
-        },
-        "gemini-claude-opus-4-5-thinking-low": {
-          "id": "gemini-claude-opus-4-5-thinking",
-          "name": "Claude Opus 4.5 (Low Thinking)",
-          "release_date": "2025-11-24",
-          "reasoning": true,
-          "limit": { "context": 200000, "output": 64000 },
-          "cost": { "input": 5, "output": 25, "cache_read": 0.5 },
-          "modalities": { "input": ["text", "image", "pdf"], "output": ["text"] },
-          "options": { "thinkingConfig": { "thinkingBudget": 4000, "includeThoughts": true } }
-        }
-      }
-    }
-  }
-}
-```
-
-## Debugging Antigravity Requests
-
-Use OpenCode's built-in logging to debug Antigravity requests:
-
-```bash
-opencode --log-level DEBUG --print-logs
-```
-
-Or just set the log level and check the log files:
-
-```bash
-opencode --log-level DEBUG
-```
-
-Log files are stored in `~/.local/share/opencode/logs/` (or `$XDG_DATA_HOME/opencode/logs/`).
-
-## How to test with Opencode
-
-1. Install plugin locally as above or via registry.
-2. Run `opencode auth login` and pick **Antigravity**.
-3. Complete browser flow (or copy/paste if headless).
-4. Issue a Gemini model request, e.g. `opencode run -m google/gemini-2.5-flash -p "hello"` or `opencode run -m google/gemini-3-pro-high -p "solve this"`.
-5. Verify responses succeed and no API key prompt appears.
-
-## Troubleshooting
-
-### Image Support
-
-To enable image input for Antigravity models in OpenCode, you must add the `modalities` configuration to your model definitions in `opencode.json`:
-
-```json
-{
-  "provider": {
-    "google": {
-      "models": {
-        "gemini-3-pro-high": {
-          "modalities": {
-            "input": ["text", "image"],
-            "output": ["text"]
-          }
-        },
-        "claude-sonnet-4-5-thinking": {
-          "modalities": {
-            "input": ["text", "image"],
-            "output": ["text"]
-          }
-        }
-      }
-    }
-  }
-}
-```
-
-Without the `modalities.input` array containing `"image"`, OpenCode will reject image inputs with the error: `"this model does not support image input"`. This applies to both Gemini and Claude models accessed through Antigravity.
-
-**Note:** The example config in this README already includes proper `modalities` configuration for all models.
-
-### Tool Name Compatibility with Gemini
-
-Gemini API requires tool names to match the pattern `^[a-zA-Z_][a-zA-Z0-9_-]*$`, meaning they cannot start with numbers. The plugin automatically sanitizes tool names by prepending `t_` to any tool name that starts with a digit.
-
-For example:
-- `21st-dev-magic_component_builder` → `t_21st-dev-magic_component_builder`
-
-This sanitization is transparent and automatic. However, if you encounter tool-related errors with Gemini models, you can disable problematic MCP servers in your config:
-
-```json
-{
-  "provider": {
-    "google": {
-      "models": {
-        "gemini-3-pro-high": {
-          "tools": {
-            "21st-dev-magic_*": false
-          }
-        }
-      }
-    }
-  }
-}
-```
-
-### Compatibility with `opencode-skills`
-
-The [`opencode-skills`](https://github.com/malhashemi/opencode-skills) plugin is currently **incompatible** with this plugin. Using them together may cause `invalid_request_error` failures, especially with Claude thinking models, due to conflicts in message history handling.
-
-**Recommended Alternative:**
-We suggest using [openskills](https://github.com/numman-ali/openskills) instead, which provides similar functionality without these compatibility issues.
+See [`example-config.json`](./example-config.json) for a full configuration with all supported models and thinking presets.
 
 ## Credits
 
-This project is based on:
-- [opencode-gemini-auth](https://github.com/jenslys/opencode-gemini-auth) - Original Gemini OAuth implementation by [@jenslys](https://github.com/jenslys)
-- [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) - Reference implementation for Antigravity API translation
-- Special thanks to [Mirrowel](https://github.com/Mirrowel) for identifying Gemini/Claude tool behavior fixes and mitigation strategies.
-
-## Cross-Model Conversations
-
-You can switch between Claude and Gemini models within the same conversation session. The plugin handles the complexities of thinking block signatures with **family-independent caching**.
-
-### How It Works
-
-When models generate "thinking" blocks (extended reasoning), each provider signs them cryptographically. These signatures are provider-specific and cannot be validated across providers. The plugin solves this with:
-
-1. **Family-Independent Cache**: Signatures are cached per model family (`claude` or `gemini`), preventing cross-contamination
-2. **Response Caching**: When a model responds with thinking, the signature is cached in that family's namespace
-3. **Request Restoration**: When sending a request, thinking blocks are restored from the same family's cache
-4. **Foreign Removal**: Thinking blocks not found in the current family's cache are removed (they're from another family)
-
-### Behavior Summary
-
-| Transition | Thinking Preserved | Notes |
-|------------|-------------------|-------|
-| Claude → Claude | ✅ All Claude thinking | Signatures restored from Claude cache |
-| Gemini → Gemini | ✅ All Gemini thinking | Signatures restored from Gemini cache |
-| Claude → Gemini | ❌ Claude thinking removed | Not in Gemini's cache |
-| Gemini → Claude | ❌ Gemini thinking removed | Not in Claude's cache |
-
-### Multi-Turn Example
-
-```
-Turn 1: Claude (thinking) → "Let me analyze this..." [cached in Claude family]
-Turn 2: Switch to Gemini  → Claude's thinking removed, only text preserved
-Turn 3: Gemini (thinking) → "Processing..." [cached in Gemini family]  
-Turn 4: Switch to Claude  → Gemini's thinking removed, Claude Turn 1 restored ✅
-Turn 5: Switch to Gemini  → Claude's thinking removed, Gemini Turn 3 restored ✅
-```
-
-### Key Points
-
-- **Family isolation**: Claude and Gemini thinking are cached separately
-- **No cross-contamination**: Impossible for signatures to leak between families
-- **Conversation text preserved**: Only thinking blocks are removed; actual response text flows through normally
-- **Same-provider continuity**: Each family maintains its own thinking history across model switches
-
-
+- [opencode-gemini-auth](https://github.com/jenslys/opencode-gemini-auth) by [@jenslys](https://github.com/jenslys)
+- [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) for Antigravity API reference
+- [Mirrowel](https://github.com/Mirrowel) for Gemini/Claude tool behavior fixes
