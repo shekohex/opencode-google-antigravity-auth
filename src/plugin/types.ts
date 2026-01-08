@@ -38,6 +38,7 @@ export type PluginClient = PluginInput['client'];
 
 export interface PluginContext {
   client: PluginClient;
+  directory: string;
 }
 
 export type PluginResult = Awaited<ReturnType<Plugin>>;

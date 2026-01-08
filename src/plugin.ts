@@ -13,6 +13,7 @@ import { executeSearch } from "./plugin/search";
 import { startOAuthListener, type OAuthListener } from "./plugin/server";
 import { loadAccounts, saveAccounts } from "./plugin/storage";
 import { refreshAccessToken } from "./plugin/token";
+import { createSessionRecoveryHook } from "./plugin/recovery";
 import type {
   GetAuth,
   LoaderResult,
@@ -233,10 +234,13 @@ async function authenticateSingleAccount(
   };
 }
 
-export const AntigravityOAuthPlugin = async ({ client }: PluginContext): Promise<PluginResult> => {
+export const AntigravityOAuthPlugin = async ({ client, directory }: PluginContext): Promise<PluginResult> => {
   initLogger(client);
 
   let cachedGetAuth: GetAuth | null = null;
+
+  const recoveryEnabled = process.env.ANTIGRAVITY_SESSION_RECOVERY !== '0';
+  const sessionRecovery = recoveryEnabled ? createSessionRecoveryHook({ client, directory }) : null;
 
   return {
     auth: {
@@ -394,6 +398,41 @@ export const AntigravityOAuthPlugin = async ({ client }: PluginContext): Promise
         }
         return cachedGetAuth();
       }, client),
+    },
+    event: async (input: { event: { type: string; properties?: unknown } }) => {
+      if (sessionRecovery && input.event.type === "session.error") {
+        const props = input.event.properties as Record<string, unknown> | undefined;
+        const sessionID = props?.sessionID as string | undefined;
+        const messageID = props?.messageID as string | undefined;
+        const error = props?.error;
+
+        if (sessionRecovery.isRecoverableError(error)) {
+          const messageInfo = {
+            id: messageID,
+            role: "assistant" as const,
+            sessionID,
+            error,
+          };
+
+          const recovered = await sessionRecovery.handleSessionRecovery(messageInfo);
+
+          if (recovered && sessionID) {
+            await client.session.prompt({
+              path: { id: sessionID },
+              body: { parts: [{ type: "text", text: "continue" }] },
+              query: { directory },
+            }).catch(() => {});
+
+            await client.tui.showToast({
+              body: {
+                title: "Session Recovered",
+                message: "Continuing where you left off...",
+                variant: "success",
+              },
+            }).catch(() => {});
+          }
+        }
+      }
     },
   };
 };
