@@ -1,6 +1,6 @@
 import { getCachedSignature } from "../cache";
 import { createLogger } from "../logger";
-import { normalizeThinkingConfig } from "../request-helpers";
+import { applyAntigravitySystemInstruction, normalizeThinkingConfig } from "../request-helpers";
 import { cacheToolSchemas } from "../tool-schema-cache";
 import type { RequestPayload, TransformContext, TransformResult } from "./types";
 
@@ -531,6 +531,7 @@ export function transformGeminiRequest(
   augmentToolDescriptionsWithStrictParams(requestPayload);
   injectSystemInstructionIfNeeded(requestPayload);
   scrubConversationArtifactsFromModelHistory(requestPayload);
+  applyAntigravitySystemInstruction(requestPayload, context.model);
 
   const contents = requestPayload.contents as Array<Record<string, unknown>> | undefined;
   if (Array.isArray(contents)) {
@@ -638,6 +639,7 @@ export function transformGeminiRequest(
     project: context.projectId,
     model: context.model,
     userAgent: "antigravity",
+    requestType: "agent",
     requestId: context.requestId,
     request: requestPayload,
   };

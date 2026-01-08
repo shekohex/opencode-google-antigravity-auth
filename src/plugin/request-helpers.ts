@@ -11,6 +11,43 @@ export function generateRequestId(): string {
   return `agent-${randomUUID()}`;
 }
 
+export const ANTIGRAVITY_BASE_SYSTEM_INSTRUCTION =
+  "You are Antigravity, a powerful agentic AI coding assistant designed by the Google Deepmind team working on Advanced Agentic Coding.You are pair programming with a USER to solve their coding task. The task may require creating a new codebase, modifying or debugging an existing codebase, or simply answering a question.**Absolute paths only****Proactiveness**";
+
+export function applyAntigravitySystemInstruction(payload: Record<string, unknown>, model: string): void {
+  const normalizedModel = model.toLowerCase();
+  const needsInjection = normalizedModel.includes("claude")
+    || normalizedModel.includes("gemini-3-pro")
+    || normalizedModel.includes("gemini-3-flash");
+  if (!needsInjection) {
+    return;
+  }
+
+  const existing = payload.systemInstruction;
+  let existingParts: Array<Record<string, unknown>> = [];
+  let existingRecord: Record<string, unknown> | undefined;
+
+  if (typeof existing === "string") {
+    if (existing.length > 0) {
+      existingParts = [{ text: existing }];
+    }
+  } else if (existing && typeof existing === "object") {
+    existingRecord = existing as Record<string, unknown>;
+    const parts = existingRecord.parts;
+    if (Array.isArray(parts)) {
+      existingParts = parts.filter(
+        (part): part is Record<string, unknown> => typeof part === "object" && part !== null,
+      );
+    }
+  }
+
+  const nextParts = [{ text: ANTIGRAVITY_BASE_SYSTEM_INSTRUCTION }, ...existingParts];
+
+  payload.systemInstruction = existingRecord
+    ? { ...existingRecord, role: "user", parts: nextParts }
+    : { role: "user", parts: nextParts };
+}
+
 const GEMINI_PREVIEW_LINK = "https://goo.gle/enable-preview-features";
 
 export interface GeminiApiError {
