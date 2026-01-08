@@ -132,6 +132,20 @@ describe("URL Transformation", () => {
     
     expect(result.requestedModel).toBe("gemini-3-flash");
   });
+
+  test("aliases gemini-3-flash-preview to gemini-3-flash", async () => {
+    const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent";
+
+    const result = await prepareAntigravityRequest(
+      url,
+      { method: "POST", body: JSON.stringify({ contents: [] }) },
+      "dummy-token",
+      "dummy-project"
+    );
+
+    const body = JSON.parse(result.init.body as string);
+    expect(body.model).toBe("gemini-3-flash");
+  });
 });
 
 describe("Endpoint Fallback Override", () => {

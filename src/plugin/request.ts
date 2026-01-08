@@ -29,6 +29,7 @@ const MODEL_ALIASES: Record<string, string> = {
   "gemini-2.5-computer-use-preview-10-2025": "rev19-uic3-1p",
   "gemini-3-pro-image-preview": "gemini-3-pro-image",
   "gemini-3-pro-preview": "gemini-3-pro-high",
+  "gemini-3-flash-preview": "gemini-3-flash",
   "gemini-claude-sonnet-4-5": "claude-sonnet-4-5",
   "gemini-claude-sonnet-4-5-thinking": "claude-sonnet-4-5-thinking",
   "gemini-claude-opus-4-5-thinking": "claude-opus-4-5-thinking",

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import { cacheSignature } from "../cache";
-import { normalizeToolCallArgs, recursivelyParseJsonStrings } from "../request-helpers";
+import { ANTIGRAVITY_BASE_SYSTEM_INSTRUCTION, normalizeToolCallArgs, recursivelyParseJsonStrings } from "../request-helpers";
 import { cacheToolSchemas, clearToolSchemaCache } from "../tool-schema-cache";
 import { transformClaudeRequest } from "./claude";
 import { transformGeminiRequest } from "./gemini";
@@ -139,6 +139,38 @@ describe("thoughtSignature handling", () => {
       const userParts = contents[0].parts;
       expect(userParts[0].thoughtSignature).toBe("user-sig-should-stay");
     });
+
+    it("prepends Antigravity systemInstruction and requestType for gemini-3-pro", () => {
+      const payload: RequestPayload = {
+        systemInstruction: { parts: [{ text: "Existing instruction" }] },
+        contents: [{ role: "user", parts: [{ text: "hi" }] }],
+      };
+
+      const context = createContext("gemini-3-pro-high");
+      const result = transformGeminiRequest(context, payload);
+      const parsed = JSON.parse(result.body);
+
+      expect(parsed.requestType).toBe("agent");
+      expect(parsed.request.systemInstruction.role).toBe("user");
+      expect(parsed.request.systemInstruction.parts[0].text).toBe(ANTIGRAVITY_BASE_SYSTEM_INSTRUCTION);
+      expect(parsed.request.systemInstruction.parts[1].text).toBe("Existing instruction");
+    });
+
+    it("prepends Antigravity systemInstruction and requestType for gemini-3-flash-preview", () => {
+      const payload: RequestPayload = {
+        systemInstruction: { parts: [{ text: "Existing instruction" }] },
+        contents: [{ role: "user", parts: [{ text: "hi" }] }],
+      };
+
+      const context = createContext("gemini-3-flash-preview");
+      const result = transformGeminiRequest(context, payload);
+      const parsed = JSON.parse(result.body);
+
+      expect(parsed.requestType).toBe("agent");
+      expect(parsed.request.systemInstruction.role).toBe("user");
+      expect(parsed.request.systemInstruction.parts[0].text).toBe(ANTIGRAVITY_BASE_SYSTEM_INSTRUCTION);
+      expect(parsed.request.systemInstruction.parts[1].text).toBe("Existing instruction");
+    });
   });
 
   describe("tool schema mitigations", () => {
@@ -177,7 +209,10 @@ describe("thoughtSignature handling", () => {
       const result = transformGeminiRequest(context, payload);
       const parsed = JSON.parse(result.body);
 
-      expect(parsed.request.systemInstruction.parts[0].text).toContain("<CRITICAL_TOOL_USAGE_INSTRUCTIONS>");
+      const instructionText = parsed.request.systemInstruction.parts
+        .map((part: any) => part.text ?? "")
+        .join("\n");
+      expect(instructionText).toContain("<CRITICAL_TOOL_USAGE_INSTRUCTIONS>");
       const funcDecl = parsed.request.tools[0].functionDeclarations[0];
       expect(funcDecl.description).toContain("STRICT PARAMETERS:");
       expect(funcDecl.description).toContain("filePath");
@@ -306,6 +341,22 @@ describe("thoughtSignature handling", () => {
   });
 
   describe("claude transformer", () => {
+    it("prepends Antigravity systemInstruction and requestType for claude models", () => {
+      const payload: RequestPayload = {
+        systemInstruction: "Existing instruction",
+        contents: [{ role: "user", parts: [{ text: "Hello" }] }],
+      };
+
+      const context = createContext("gemini-claude-sonnet-4-5");
+      const result = transformClaudeRequest(context, payload);
+      const parsed = JSON.parse(result.body);
+
+      expect(parsed.requestType).toBe("agent");
+      expect(parsed.request.systemInstruction.role).toBe("user");
+      expect(parsed.request.systemInstruction.parts[0].text).toBe(ANTIGRAVITY_BASE_SYSTEM_INSTRUCTION);
+      expect(parsed.request.systemInstruction.parts[1].text).toBe("Existing instruction");
+    });
+
     it("keeps thinking blocks with valid signatures (length > 50)", () => {
       const payload: RequestPayload = {
         contents: [

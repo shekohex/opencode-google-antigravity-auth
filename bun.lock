@@ -1,15 +1,16 @@
 {
   "lockfileVersion": 1,
+  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "opencode-gemini-auth",
       "dependencies": {
         "@openauthjs/openauth": "^0.4.3",
-        "@opencode-ai/plugin": "^1.0.169",
+        "@opencode-ai/plugin": "^1.0.182",
         "open": "^11.0.0",
       },
       "devDependencies": {
-        "@opencode-ai/sdk": "^1.0.169",
+        "@opencode-ai/sdk": "^1.0.182",
         "@types/bun": "latest",
       },
       "peerDependencies": {

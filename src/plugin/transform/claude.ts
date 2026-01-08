@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { cacheSignature, getCachedSignature } from "../cache";
 import { createLogger } from "../logger";
-import { normalizeThinkingConfig } from "../request-helpers";
+import { applyAntigravitySystemInstruction, normalizeThinkingConfig } from "../request-helpers";
 import { cacheToolSchemas } from "../tool-schema-cache";
 import type { RequestPayload, TransformContext, TransformResult } from "./types";
 
@@ -161,6 +161,8 @@ export function transformClaudeRequest(
     delete requestPayload.system_instruction;
   }
 
+  applyAntigravitySystemInstruction(requestPayload, context.model);
+
   const cachedContentFromExtra =
     typeof requestPayload.extra_body === "object" && requestPayload.extra_body
       ? (requestPayload.extra_body as Record<string, unknown>).cached_content ??
@@ -316,6 +318,7 @@ export function transformClaudeRequest(
     project: context.projectId,
     model: context.model,
     userAgent: "antigravity",
+    requestType: "agent",
     requestId: context.requestId,
     request: requestPayload,
   };
